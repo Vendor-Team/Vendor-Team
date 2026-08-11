@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>团队数据看板</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo-dot"></span> 团队数据看板</div>
+    <nav class="nav">
+      <a href="/" class="active">首页</a>
+      <a href="/mydata.html">我的数据</a>
+      <a href="/upload2.html">上传数据</a>
+    </nav>
+    <button id="themeToggle" class="theme-toggle" aria-label="切换主题">深色模式</button>
+  </header>
+
+  <main class="container">
+    <section class="hero glass">
+      <h1>把团队数据，变成一眼看懂的看板</h1>
+      <p class="muted">分人分域上传 Excel，看板立刻读得到。任何人打开链接就能传、就能看，无需登录。</p>
+      <div class="hero-actions">
+        <a href="/mydata.html" class="btn primary">看我的数据</a>
+        <a href="/upload2.html" class="btn">上传 Excel</a>
+      </div>
+    </section>
+
+    <section class="grid">
+      <a href="/upload2.html" class="card glass">
+        <div class="ico"></div>
+        <h3>上传数据（分域）</h3>
+        <p class="muted">选数据域、传 Excel/CSV，自动存进仓库，看板立刻读得到。可填更新人。</p>
+      </a>
+      <a href="/mydata.html" class="card glass">
+        <div class="ico"></div>
+        <h3>我的数据</h3>
+        <p class="muted">选一个域，读取大家传的最新数据，出 KPI、图表与明细表。</p>
+      </a>
+    </section>
+
+    <p class="muted" style="text-align:center;margin-top:8px;font-size:13px">
+      注：「运营看板（vendor-dash 风格）」需配合本地 Node 服务，后续会出纯静态版。
+    </p>
+  </main>
+
+  <footer class="footer muted">有链接即可使用 · 无需登录</footer>
+  <script src="/js/app.js"></script>
+</body>
+</html>
