@@ -43,13 +43,22 @@ window.DB = (function () {
   // 读取某域全部行；返回 { by, updatedAt, rows }
   async function readDomain(domain) {
     const r = await req('GET', '?domain=eq.' + encodeURIComponent(domain) +
-      '&select=domain,row_key,uploader,updated_at,row_data&order=row_key');
+      '&select=domain,row_key,uploader,updated_at,row_data,file_tag&order=row_key');
     const items = await r.json();
     if (!Array.isArray(items) || !items.length) return null;
-    const rows = items.map(it => it.row_data);
+    const filesMap = {};
+    items.forEach((it) => {
+      const ft = it.file_tag || '未命名批次';
+      if (!filesMap[ft]) filesMap[ft] = { fileTag: ft, count: 0, updatedAt: it.updated_at };
+      filesMap[ft].count++;
+      if (it.updated_at > filesMap[ft].updatedAt) filesMap[ft].updatedAt = it.updated_at;
+    });
+    const files = Object.values(filesMap).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const rows = items.map((it) => it.row_data);
     return {
       by: items[0].uploader,
       updatedAt: items[items.length - 1].updated_at,
+      files,
       rows,
     };
   }
@@ -65,6 +74,7 @@ window.DB = (function () {
     const rows = payload.rows || [];
     if (!rows.length) return 0;
 
+    const fileTag = options.fileTag || '未命名批次';
     const bodies = rows.map((row, idx) => {
       let key = keyField && row[keyField] != null ? String(row[keyField]) : '';
       if (!key) key = String(idx + 1); // 兜底：行号
@@ -73,6 +83,7 @@ window.DB = (function () {
         row_key: key,
         uploader,
         updated_at: now,
+        file_tag: fileTag,
         row_data: row,
       };
     });
@@ -94,8 +105,15 @@ window.DB = (function () {
     return true;
   }
 
+  // 删除某域内某个文件（批次）的全部行
+  async function deleteFile(domain, fileTag) {
+    await req('DELETE', '?domain=eq.' + encodeURIComponent(domain) +
+      '&file_tag=eq.' + encodeURIComponent(fileTag));
+    return true;
+  }
+
   return {
-    readDomain, writeDomain, deleteDomain,
+    readDomain, writeDomain, deleteDomain, deleteFile,
     getUploader, setUploader, getLastMergeKey, setLastMergeKey,
   };
 })();

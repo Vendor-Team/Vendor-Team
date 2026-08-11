@@ -37,6 +37,10 @@
           <label>Excel / CSV 文件</label>
           <input type="file" id="file" name="file" accept=".xlsx,.xls,.csv" required />
         </div>
+        <div class="fitem" style="margin-bottom:16px">
+          <label>文件 / 批次名称<span class="muted" style="font-weight:normal;font-size:12px">（用于以后单独删除这份数据，默认取文件名）</span></label>
+          <input type="text" id="fileTag" name="fileTag" placeholder="如：7月订单_第一批" />
+        </div>
         <div class="fitem" id="keyWrap" style="margin-bottom:16px;display:none">
           <label>唯一键列（按哪一列识别订单，增量合并用）<span class="muted" style="font-weight:normal;font-size:12px">不选则用第一列</span></label>
           <select id="keyCol"></select>

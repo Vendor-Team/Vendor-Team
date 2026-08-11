@@ -2,6 +2,9 @@
 let chart = null;
 const isNum = (v) => v !== null && v !== '' && v !== undefined && !isNaN(Number(String(v).replace(/[,%$]/g, '')));
 const toNum = (v) => Number(String(v).replace(/[,%$]/g, ''));
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 function firstTextCol(cols, rows) {
   for (const c of cols) {
@@ -23,6 +26,7 @@ function setEmpty(msg, showBoard) {
   document.getElementById('empty').style.display = showBoard ? 'none' : 'block';
   document.getElementById('empty').querySelector('p').textContent = msg;
   document.getElementById('updated').textContent = '';
+  document.getElementById('fileList').style.display = 'none';
 }
 
 async function load() {
@@ -95,6 +99,9 @@ async function load() {
     const body = rows.slice(0, 50).map((r) => '<tr>' + cols.map((c) => `<td>${r[c] == null ? '' : r[c]}</td>`).join('') + '</tr>').join('');
     document.getElementById('tableWrap').innerHTML = `<table class="tbl"><thead>${head}</thead><tbody>${body}</tbody></table>`;
 
+    // 已上传文件列表（可单独删除）
+    renderFileList(domain, data.files);
+
     updated.textContent = '更新于 ' + new Date(data.updatedAt || Date.now()).toLocaleString() + '（云端数据库）';
   } catch (e) {
     setEmpty('读取失败：' + e.message, false);
@@ -103,24 +110,31 @@ async function load() {
   }
 }
 
-async function clearDomain() {
-  const domain = document.getElementById('domain').value;
-  if (!confirm(`确定要清空「${domain}」这个域的所有数据吗？\n清空后无法恢复，请确认。`)) return;
-  const btn = document.getElementById('clearBtn');
-  btn.disabled = true;
-  btn.textContent = '清空中…';
+function renderFileList(domain, files) {
+  const wrap = document.getElementById('fileList');
+  const body = document.getElementById('fileListBody');
+  if (!files || !files.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  body.innerHTML = files.map((f) => `
+    <div class="file-row">
+      <span class="file-meta"><b>${escapeHtml(f.fileTag)}</b> · ${f.count} 行 · ${new Date(f.updatedAt).toLocaleString()}</span>
+      <button class="btn danger sm" data-tag="${escapeHtml(f.fileTag)}">删除这份</button>
+    </div>`).join('');
+  body.querySelectorAll('button[data-tag]').forEach((b) => {
+    b.addEventListener('click', () => deleteFile(domain, b.getAttribute('data-tag')));
+  });
+}
+
+async function deleteFile(domain, fileTag) {
+  if (!confirm(`确定要删除文件「${fileTag}」这份数据吗？\n只删这一份，同域其他文件不受影响。删除后无法恢复。`)) return;
   try {
-    await DB.deleteDomain(domain);
-    setEmpty('该域数据已清空，去上传一份吧。', false);
+    await DB.deleteFile(domain, fileTag);
+    await load();
   } catch (e) {
-    alert('清空失败：' + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '清空该域';
+    alert('删除失败：' + e.message);
   }
 }
 
 document.getElementById('loadBtn').addEventListener('click', load);
-document.getElementById('clearBtn').addEventListener('click', clearDomain);
 document.getElementById('domain').addEventListener('change', load);
 load();

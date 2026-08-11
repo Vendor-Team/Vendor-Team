@@ -5,6 +5,7 @@ const resultEl = document.getElementById('result');
 const btn = document.getElementById('submitBtn');
 const byInput = document.getElementById('by');
 const fileInput = document.getElementById('file');
+const fileTagInput = document.getElementById('fileTag');
 const keyColSelect = document.getElementById('keyCol');
 const keyWrap = document.getElementById('keyWrap');
 
@@ -64,6 +65,7 @@ fileInput.addEventListener('change', async () => {
     const { rows, columns } = await parseFile(file);
     parsedRows = rows;
     parsedColumns = columns;
+    if (!fileTagInput.value) fileTagInput.value = file.name.replace(/\.[^.]+$/, '');
     keyColSelect.innerHTML = columns.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     const last = DB.getLastMergeKey();
     if (last && columns.includes(last)) keyColSelect.value = last;
@@ -90,6 +92,7 @@ form.addEventListener('submit', async (e) => {
   const by = byInput.value.trim() || '匿名';
   DB.setUploader(by);
   const key = keyColSelect.value || parsedColumns[0] || '';
+  const fileTag = fileTagInput.value.trim() || file.name.replace(/\.[^.]+$/, '') || '未命名批次';
 
   const payload = { by, updatedAt: new Date().toISOString(), rows: parsedRows };
 
@@ -98,6 +101,7 @@ form.addEventListener('submit', async (e) => {
   try {
     const total = await DB.writeDomain(domain, payload, {
       key,
+      fileTag,
       onProgress: (written, totalRows) => {
         statusEl.textContent = `已写入 ${written.toLocaleString()} / ${totalRows.toLocaleString()} 行…`;
       },
@@ -109,6 +113,7 @@ form.addEventListener('submit', async (e) => {
       <div class="ok" style="font-weight:600;margin-bottom:8px">✅ 存入成功（云端数据库 · 增量合并）</div>
       <div class="muted" style="font-size:13px;line-height:1.9">
         数据域：<b>${domain}</b><br/>
+        文件 / 批次：<b>${fileTag}</b>（以后可在「我的数据」里单独删除这份）<br/>
         行数：<b>${total.toLocaleString()}</b> ｜ 列数：<b>${parsedColumns.length}</b><br/>
         唯一键列：<b>${key}</b>（同键会覆盖，不同键会追加）<br/>
         更新人：<b>${by}</b> ｜ 时间：${new Date(payload.updatedAt).toLocaleString()}<br/>
