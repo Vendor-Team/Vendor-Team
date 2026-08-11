@@ -13,7 +13,7 @@ function loadSheetJS() {
   return new Promise((resolve, reject) => {
     if (window.XLSX) return resolve(window.XLSX);
     const s = document.createElement('script');
-    s.src = '/vendor/xlsx.full.min.js';
+    s.src = 'vendor/xlsx.full.min.js';
     s.onload = () => resolve(window.XLSX);
     s.onerror = () => reject(new Error('Excel 解析库加载失败'));
     document.head.appendChild(s);
@@ -79,7 +79,7 @@ form.addEventListener('submit', async (e) => {
     statusEl.textContent = '已存入仓库 ✓';
     resultEl.style.display = 'block';
     resultEl.innerHTML = `
-      <div class="ok" style="font-weight:600;margin-bottom:8px">✅ 存入成功（已提交到 GitHub 仓库 · ${CFG.GITHUB_REPO}）</div>
+      <div class="ok" style="font-weight:600;margin-bottom:8px">✅ 存入成功（已提交到 GitHub 仓库 · ${(window.APP_CONFIG || {}).GITHUB_REPO || 'Vendor-Team'}）</div>
       <div class="muted" style="font-size:13px;line-height:1.9">
         数据域：<b>${domain}</b><br/>
         行数：<b>${rows.length}</b> ｜ 列数：<b>${columns.length}</b><br/>
