@@ -1,15 +1,19 @@
-// 全局配置：API 基址（生产必填）
-// 留空 '' = 使用同源本地 Node 服务（开发 / 兜底模式）
-// 部署到 GitHub Pages 后，已指向 Cloudflare Worker：
-//   https://vendor-api.lowes-94e.workers.dev
-// 临时覆盖：在网址后加 ?api=https://xxx.workers.dev
-// ⚠️ 没填 Worker 地址时，上传 / 读取会失败（Pages 是纯静态，没有后端）。
+// 全局配置
+// 模式：github-direct（团队成员各自用 GitHub 账号 OAuth 直连仓库，无需服务器/域名）
 (function () {
   window.APP_CONFIG = window.APP_CONFIG || {};
-  // 生产环境：直接指向 Cloudflare Worker 代理
-  window.APP_CONFIG.API_BASE = 'https://vendor-api.lowes-94e.workers.dev';
-  const params = new URLSearchParams(location.search);
-  let base = window.APP_CONFIG.API_BASE || '';
-  if (params.get('api')) base = params.get('api');
-  window.__API = base;
+  const CFG = window.APP_CONFIG;
+
+  CFG.MODE = 'github-direct';
+
+  // ↓↓↓ GitHub OAuth App 的 Client ID（Device Flow 免密钥，非机密，可公开）↓↓↓
+  // 在 github.com/settings/developers 新建 OAuth App 后，把那串 Client ID 粘到这里。
+  CFG.GITHUB_CLIENT_ID = 'Ov23li2zcpzs4aSXcvaN';
+
+  CFG.GITHUB_OWNER = 'Vendor-Team';
+  CFG.GITHUB_REPO = 'Vendor-Team';
+  CFG.GITHUB_BRANCH = 'main';
+
+  // 兼容旧版：若未来想用 Cloudflare Worker 兜底，填此处地址；留空则纯直连。
+  CFG.GITHUB_WORKER_URL = '';
 })();

@@ -1,9 +1,0 @@
-name = "dash-upload-proxy"
-main = "index.js"
-compatibility_date = "2024-09-23"
-
-# vars 不含任何密钥；GITHUB_TOKEN 必须用 secret 注入（见 README）
-[vars]
-GITHUB_OWNER = "你的组织名"
-GITHUB_REPO = "你的仓库名"
-GITHUB_BRANCH = "main"

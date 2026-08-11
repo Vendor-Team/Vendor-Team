@@ -1,7 +1,5 @@
-// mydata.js —— 读取仓库数据并出 KPI / 图表
-const API = window.__API || '';
+// mydata.js —— 读取仓库数据并出 KPI / 图表（GitHub OAuth 直连）
 let chart = null;
-
 const isNum = (v) => v !== null && v !== '' && v !== undefined && !isNaN(Number(String(v).replace(/[,%$]/g, '')));
 const toNum = (v) => Number(String(v).replace(/[,%$]/g, ''));
 
@@ -27,9 +25,8 @@ async function load() {
   const updated = document.getElementById('updated');
   document.getElementById('loadBtn').textContent = '读取中…';
   try {
-    const r = await fetch(API + '/api/gh/data/' + domain);
-    const j = await r.json();
-    if (!j.ok || !j.rows || !j.rows.length) {
+    const data = await GH.readDomain(domain); // 公开仓库可匿名读，登录后带 token 也可
+    if (!data || !data.rows || !data.rows.length) {
       board.style.display = 'none';
       empty.style.display = 'block';
       empty.querySelector('p').textContent = '该域还没有数据，去上传一份吧。';
@@ -39,7 +36,8 @@ async function load() {
     empty.style.display = 'none';
     board.style.display = 'block';
 
-    const cols = j.columns, rows = j.rows;
+    const cols = data.columns || (data.rows[0] ? Object.keys(data.rows[0]) : []);
+    const rows = data.rows;
     const textCol = firstTextCol(cols, rows);
     const numCol = firstNumCol(cols, rows);
 
@@ -47,12 +45,11 @@ async function load() {
     const kpis = [
       { label: '数据域', val: domain, sub: '' },
       { label: '行数', val: rows.length.toLocaleString(), sub: cols.length + ' 列' },
-      { label: '更新人', val: (j.by || '—'), sub: '' },
+      { label: '更新人', val: (data.by || '—'), sub: '' },
     ];
     if (numCol) {
       const sum = rows.reduce((s, r) => s + (isNum(r[numCol]) ? toNum(r[numCol]) : 0), 0);
       kpis.push({ label: numCol + ' 合计', val: sum.toLocaleString(), sub: '首数值列' });
-      const nums = rows.map((r) => (isNum(r[numCol]) ? toNum(r[numCol]) : 0));
       const avg = sum / rows.length;
       kpis.push({ label: numCol + ' 均值', val: avg.toLocaleString(undefined, { maximumFractionDigits: 1 }), sub: '平均' });
     }
@@ -94,7 +91,7 @@ async function load() {
     const body = rows.slice(0, 50).map((r) => '<tr>' + cols.map((c) => `<td>${r[c] == null ? '' : r[c]}</td>`).join('') + '</tr>').join('');
     document.getElementById('tableWrap').innerHTML = `<table class="tbl"><thead>${head}</thead><tbody>${body}</tbody></table>`;
 
-    updated.textContent = '更新于 ' + new Date(j.updatedAt || Date.now()).toLocaleString() + (j.mode === 'github' ? '（GitHub 仓库）' : '（本地仓库）');
+    updated.textContent = '更新于 ' + new Date(data.updatedAt || Date.now()).toLocaleString() + '（GitHub 仓库）';
   } catch (e) {
     board.style.display = 'none'; empty.style.display = 'block';
     empty.querySelector('p').textContent = '读取失败：' + e.message;
@@ -102,6 +99,12 @@ async function load() {
     document.getElementById('loadBtn').textContent = '读取数据';
   }
 }
+
+// 登录态（查看无需登录；登录后仅用于记录上传人）
+GH.mountAuth('authGate', {
+  note: '查看数据无需登录；登录用于上传时记录更新人',
+  allowLogout: true,
+});
 
 document.getElementById('loadBtn').addEventListener('click', load);
 document.getElementById('domain').addEventListener('change', load);
