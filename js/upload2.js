@@ -1,12 +1,9 @@
-// upload2.js —— 分域上传（GitHub OAuth 直连，无服务器）
+// upload2.js —— 分域上传（ Supabase 直连，无需服务器 / 登录）
 const form = document.getElementById('upForm');
 const statusEl = document.getElementById('status');
 const resultEl = document.getElementById('result');
 const btn = document.getElementById('submitBtn');
 const byInput = document.getElementById('by');
-
-// 未登录时禁用提交，登录后由 mountAuth 的 onLogin 解锁
-btn.disabled = true;
 
 // 浏览器端解析 Excel（已本地化 vendor/xlsx.full.min.js），避免走 CDN
 function loadSheetJS() {
@@ -20,25 +17,18 @@ function loadSheetJS() {
   });
 }
 
-GH.mountAuth('authGate', {
-  note: '上传前需用 GitHub 账号登录（团队自行注册即可）',
-  onLogin: (login) => {
-    btn.disabled = false;
-    if (login && !byInput.value) byInput.value = login; // 默认更新人 = 登录账号
-  },
-  onLogout: () => { btn.disabled = true; },
-});
+// 默认更新人：上次填过就记住
+if (DB.getUploader()) byInput.value = DB.getUploader();
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!GH.isLoggedIn()) { statusEl.textContent = '请先登录 GitHub'; return; }
-
   const fileInput = document.getElementById('file');
   const file = fileInput.files[0];
   if (!file) { statusEl.textContent = '请先选文件'; return; }
 
   const domain = document.getElementById('domain').value;
-  const by = byInput.value.trim() || GH.getLogin() || '匿名';
+  const by = byInput.value.trim() || '匿名';
+  DB.setUploader(by); // 记住上传人
 
   const isCsv = /\.csv$/i.test(file.name);
   let columns = [], rows = [];
@@ -70,16 +60,16 @@ form.addEventListener('submit', async (e) => {
     return;
   }
 
-  const payload = { by, updatedAt: new Date().toISOString(), columns, rows };
+  const payload = { by, updatedAt: new Date().toISOString(), rows };
 
   btn.disabled = true;
   statusEl.textContent = '上传中…';
   try {
-    await GH.writeDomain(domain, payload);
-    statusEl.textContent = '已存入仓库 ✓';
+    await DB.writeDomain(domain, payload);
+    statusEl.textContent = '已存入 ✓';
     resultEl.style.display = 'block';
     resultEl.innerHTML = `
-      <div class="ok" style="font-weight:600;margin-bottom:8px">✅ 存入成功（已提交到 GitHub 仓库 · ${(window.APP_CONFIG || {}).GITHUB_REPO || 'Vendor-Team'}）</div>
+      <div class="ok" style="font-weight:600;margin-bottom:8px">✅ 存入成功（云端数据库）</div>
       <div class="muted" style="font-size:13px;line-height:1.9">
         数据域：<b>${domain}</b><br/>
         行数：<b>${rows.length}</b> ｜ 列数：<b>${columns.length}</b><br/>
