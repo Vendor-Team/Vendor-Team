@@ -1,4 +1,4 @@
-// mydata.js —— 读取云端数据并出 KPI / 图表（Supabase 直连，无需登录）
+// mydata.js —— 读取云端数据并出 KPI / 图表（Supabase 行级存储，无需登录）
 let chart = null;
 const isNum = (v) => v !== null && v !== '' && v !== undefined && !isNaN(Number(String(v).replace(/[,%$]/g, '')));
 const toNum = (v) => Number(String(v).replace(/[,%$]/g, ''));
@@ -18,6 +18,13 @@ function firstNumCol(cols, rows) {
   return null;
 }
 
+function setEmpty(msg, showBoard) {
+  document.getElementById('board').style.display = showBoard ? 'block' : 'none';
+  document.getElementById('empty').style.display = showBoard ? 'none' : 'block';
+  document.getElementById('empty').querySelector('p').textContent = msg;
+  document.getElementById('updated').textContent = '';
+}
+
 async function load() {
   const domain = document.getElementById('domain').value;
   const board = document.getElementById('board');
@@ -27,17 +34,14 @@ async function load() {
   try {
     const data = await DB.readDomain(domain); // 匿名可读（已配置 RLS）
     if (!data || !data.rows || !data.rows.length) {
-      board.style.display = 'none';
-      empty.style.display = 'block';
-      empty.querySelector('p').textContent = '该域还没有数据，去上传一份吧。';
-      updated.textContent = '';
+      setEmpty('该域还没有数据，去上传一份吧。', false);
       return;
     }
     empty.style.display = 'none';
     board.style.display = 'block';
 
     const rows = data.rows;
-    const cols = (data.columns) || (rows[0] ? Object.keys(rows[0]) : []);
+    const cols = rows[0] ? Object.keys(rows[0]) : [];
     const textCol = firstTextCol(cols, rows);
     const numCol = firstNumCol(cols, rows);
 
@@ -93,13 +97,30 @@ async function load() {
 
     updated.textContent = '更新于 ' + new Date(data.updatedAt || Date.now()).toLocaleString() + '（云端数据库）';
   } catch (e) {
-    board.style.display = 'none'; empty.style.display = 'block';
-    empty.querySelector('p').textContent = '读取失败：' + e.message;
+    setEmpty('读取失败：' + e.message, false);
   } finally {
     document.getElementById('loadBtn').textContent = '读取数据';
   }
 }
 
+async function clearDomain() {
+  const domain = document.getElementById('domain').value;
+  if (!confirm(`确定要清空「${domain}」这个域的所有数据吗？\n清空后无法恢复，请确认。`)) return;
+  const btn = document.getElementById('clearBtn');
+  btn.disabled = true;
+  btn.textContent = '清空中…';
+  try {
+    await DB.deleteDomain(domain);
+    setEmpty('该域数据已清空，去上传一份吧。', false);
+  } catch (e) {
+    alert('清空失败：' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '清空该域';
+  }
+}
+
 document.getElementById('loadBtn').addEventListener('click', load);
+document.getElementById('clearBtn').addEventListener('click', clearDomain);
 document.getElementById('domain').addEventListener('change', load);
 load();

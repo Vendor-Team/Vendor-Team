@@ -37,6 +37,10 @@
           <label>Excel / CSV 文件</label>
           <input type="file" id="file" name="file" accept=".xlsx,.xls,.csv" required />
         </div>
+        <div class="fitem" id="keyWrap" style="margin-bottom:16px;display:none">
+          <label>唯一键列（按哪一列识别订单，增量合并用）<span class="muted" style="font-weight:normal;font-size:12px">不选则用第一列</span></label>
+          <select id="keyCol"></select>
+        </div>
         <div class="fitem" style="margin-bottom:20px">
           <label>更新人（可选，记一笔谁传的）</label>
           <input type="text" id="by" name="by" placeholder="如：张三" />

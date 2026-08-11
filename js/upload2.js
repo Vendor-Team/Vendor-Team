@@ -1,9 +1,15 @@
-// upload2.js —— 分域上传（ Supabase 直连，无需服务器 / 登录）
+// upload2.js —— 分域上传（Supabase 行级存储，增量合并，分批写入）
 const form = document.getElementById('upForm');
 const statusEl = document.getElementById('status');
 const resultEl = document.getElementById('result');
 const btn = document.getElementById('submitBtn');
 const byInput = document.getElementById('by');
+const fileInput = document.getElementById('file');
+const keyColSelect = document.getElementById('keyCol');
+const keyWrap = document.getElementById('keyWrap');
+
+let parsedRows = [];
+let parsedColumns = [];
 
 // 浏览器端解析 Excel（已本地化 vendor/xlsx.full.min.js），避免走 CDN
 function loadSheetJS() {
@@ -20,61 +26,93 @@ function loadSheetJS() {
 // 默认更新人：上次填过就记住
 if (DB.getUploader()) byInput.value = DB.getUploader();
 
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function parseFile(file) {
+  const isCsv = /\.csv$/i.test(file.name);
+  let columns = [], rows = [];
+  if (isCsv) {
+    const text = await file.text();
+    const parsed = parseCsv(text);
+    if (!parsed.length) throw new Error('CSV 中没有数据行');
+    columns = parsed[0];
+    rows = parsed.slice(1).map((r) => {
+      const o = {};
+      columns.forEach((c, i) => (o[c] = r[i] ?? null));
+      return o;
+    });
+  } else {
+    const XLSX = await loadSheetJS();
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: false });
+    columns = rows.length ? Object.keys(rows[0]) : [];
+    if (!rows.length) throw new Error('Excel 中没有数据行');
+  }
+  return { rows, columns };
+}
+
+// 文件选择后：解析并显示"唯一键列"下拉
+fileInput.addEventListener('change', async () => {
+  const file = fileInput.files[0];
+  if (!file) { keyWrap.style.display = 'none'; parsedRows = []; parsedColumns = []; return; }
+  statusEl.textContent = '解析预览中…';
+  btn.disabled = true;
+  try {
+    const { rows, columns } = await parseFile(file);
+    parsedRows = rows;
+    parsedColumns = columns;
+    keyColSelect.innerHTML = columns.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    const last = DB.getLastMergeKey();
+    if (last && columns.includes(last)) keyColSelect.value = last;
+    keyWrap.style.display = 'block';
+    statusEl.textContent = `已解析 ${rows.length.toLocaleString()} 行 / ${columns.length} 列，请选"订单唯一键"列再上传`;
+  } catch (err) {
+    statusEl.textContent = '解析失败';
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = `<div class="err">❌ ${err.message}</div>`;
+    parsedRows = []; parsedColumns = [];
+    keyWrap.style.display = 'none';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const fileInput = document.getElementById('file');
   const file = fileInput.files[0];
   if (!file) { statusEl.textContent = '请先选文件'; return; }
+  if (!parsedRows.length) { statusEl.textContent = '文件尚未解析，请重新选择文件'; return; }
 
   const domain = document.getElementById('domain').value;
   const by = byInput.value.trim() || '匿名';
-  DB.setUploader(by); // 记住上传人
+  DB.setUploader(by);
+  const key = keyColSelect.value || parsedColumns[0] || '';
 
-  const isCsv = /\.csv$/i.test(file.name);
-  let columns = [], rows = [];
-  try {
-    if (isCsv) {
-      const text = await file.text();
-      const parsed = parseCsv(text);
-      if (!parsed.length) throw new Error('CSV 中没有数据行');
-      columns = parsed[0];
-      rows = parsed.slice(1).map((r) => {
-        const o = {};
-        columns.forEach((c, i) => (o[c] = r[i] ?? null));
-        return o;
-      });
-    } else {
-      btn.disabled = true; statusEl.textContent = '解析 Excel 中…';
-      const XLSX = await loadSheetJS();
-      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: false });
-      columns = rows.length ? Object.keys(rows[0]) : [];
-      if (!rows.length) throw new Error('Excel 中没有数据行');
-    }
-  } catch (err) {
-    statusEl.textContent = '失败';
-    resultEl.style.display = 'block';
-    resultEl.innerHTML = `<div class="err">❌ ${err.message}</div>`;
-    btn.disabled = false;
-    return;
-  }
-
-  const payload = { by, updatedAt: new Date().toISOString(), rows };
+  const payload = { by, updatedAt: new Date().toISOString(), rows: parsedRows };
 
   btn.disabled = true;
   statusEl.textContent = '上传中…';
   try {
-    await DB.writeDomain(domain, payload);
+    const total = await DB.writeDomain(domain, payload, {
+      key,
+      onProgress: (written, totalRows) => {
+        statusEl.textContent = `已写入 ${written.toLocaleString()} / ${totalRows.toLocaleString()} 行…`;
+      },
+    });
+    DB.setLastMergeKey(key);
     statusEl.textContent = '已存入 ✓';
     resultEl.style.display = 'block';
     resultEl.innerHTML = `
-      <div class="ok" style="font-weight:600;margin-bottom:8px">✅ 存入成功（云端数据库）</div>
+      <div class="ok" style="font-weight:600;margin-bottom:8px">✅ 存入成功（云端数据库 · 增量合并）</div>
       <div class="muted" style="font-size:13px;line-height:1.9">
         数据域：<b>${domain}</b><br/>
-        行数：<b>${rows.length}</b> ｜ 列数：<b>${columns.length}</b><br/>
+        行数：<b>${total.toLocaleString()}</b> ｜ 列数：<b>${parsedColumns.length}</b><br/>
+        唯一键列：<b>${key}</b>（同键会覆盖，不同键会追加）<br/>
         更新人：<b>${by}</b> ｜ 时间：${new Date(payload.updatedAt).toLocaleString()}<br/>
-        字段：${columns.join('、')}
+        字段：${parsedColumns.join('、')}
       </div>`;
   } catch (err) {
     statusEl.textContent = '失败';
