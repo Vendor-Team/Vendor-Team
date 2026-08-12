@@ -6,7 +6,7 @@ const btn = document.getElementById('submitBtn');
 const byInput = document.getElementById('by');
 const fileInput = document.getElementById('file');
 const fileTagInput = document.getElementById('fileTag');
-const keyChecks = document.getElementById('keyChecks');
+const keyPreview = document.getElementById('keyPreview');
 const keyAutoHint = document.getElementById('keyAutoHint');
 const keyWrap = document.getElementById('keyWrap');
 const KEY_SEP = '||';
@@ -61,22 +61,14 @@ function findCol(columns, candidates) {
   return '';
 }
 
-function parseLastMergeKeys() {
-  const last = DB.getLastMergeKey();
-  if (!last) return null;
-  return last.split(KEY_SEP).map((s) => s.trim()).filter(Boolean);
-}
-
-// 按数据域给出默认唯一键列：
+// 按数据域【自动】给出唯一键列，无需用户选择：
 //  销售域 → 订单（支持"订单号"）
 //  流量域 → 日期 + 店铺（复合键）
-//  其他域 / 用户上次手动选过的 → 沿用
+//  其他域 / 未匹配到推荐列 → 第一列兜底
 function computeDefaultKeys(columns, domain) {
-  const last = parseLastMergeKeys();
-  if (last && last.length && last.every((k) => columns.includes(k))) return last;
   if (domain === 'sales') {
     const o = findCol(columns, [/^订单$/, /订单/]);
-    return o ? [o] : [];
+    return o ? [o] : [columns[0]];
   }
   if (domain === 'traffic') {
     const keys = [];
@@ -84,29 +76,22 @@ function computeDefaultKeys(columns, domain) {
     const shop = findCol(columns, [/^店铺$/, /店铺/, /门店/, /store/i, /shop/i]);
     if (date) keys.push(date);
     if (shop) keys.push(shop);
-    return keys;
+    if (keys.length) return keys;
+    return [columns[0]];
   }
-  return [];
+  return [columns[0]];
 }
 
-function renderKeyChecks(columns, defaultKeys, domain) {
-  const sel = new Set(defaultKeys);
-  keyChecks.innerHTML = columns.map((c) => {
-    const on = sel.has(c) ? ' checked' : '';
-    return `<label class="${on ? 'on' : ''}"><input type="checkbox" value="${escapeHtml(c)}"${on}/>${escapeHtml(c)}</label>`;
-  }).join('');
-  keyChecks.querySelectorAll('input[type=checkbox]').forEach((cb) => {
-    cb.addEventListener('change', () => cb.parentElement.classList.toggle('on', cb.checked));
-  });
-  const label = domain === 'sales' ? '销售域' : domain === 'traffic' ? '流量域' : '上次选择';
-  keyAutoHint.innerHTML = defaultKeys.length
-    ? `已按「${label}」默认选中：<b>${defaultKeys.join(' + ')}</b>`
-    : '未找到推荐列，请手动勾选（不选则用第一列）';
+// 只读展示：把系统自动识别的唯一键渲染成胶囊（不提供手动勾选，避免人为选错）
+function renderKeyPreview(columns, defaultKeys, domain) {
+  const label = domain === 'sales' ? '销售域' : domain === 'traffic' ? '流量域' : '默认';
+  keyPreview.innerHTML = defaultKeys.map((k) => `<span class="pill">${escapeHtml(k)}</span>`).join('');
+  keyAutoHint.innerHTML = `已按「${label}」自动识别唯一键：<b>${defaultKeys.join(' + ')}</b>（无需选择，用于增量合并）`;
 }
 
 function getSelectedKeys() {
-  const checked = Array.from(keyChecks.querySelectorAll('input[type=checkbox]:checked')).map((cb) => cb.value);
-  return checked.length ? checked : [parsedColumns[0]];
+  const domain = document.getElementById('domain').value;
+  return computeDefaultKeys(parsedColumns, domain);
 }
 
 async function parseFile(file) {
@@ -146,9 +131,9 @@ fileInput.addEventListener('change', async () => {
     if (!fileTagInput.value) fileTagInput.value = file.name.replace(/\.[^.]+$/, '');
     const domain = document.getElementById('domain').value;
     const defaultKeys = computeDefaultKeys(columns, domain);
-    renderKeyChecks(columns, defaultKeys, domain);
+    renderKeyPreview(columns, defaultKeys, domain);
     keyWrap.style.display = 'block';
-    statusEl.textContent = `已解析 ${rows.length.toLocaleString()} 行 / ${columns.length} 列，请选择唯一键列再上传`;
+    statusEl.textContent = `已解析 ${rows.length.toLocaleString()} 行 / ${columns.length} 列，系统已自动识别唯一键`;
   } catch (err) {
     statusEl.textContent = '解析失败';
     resultEl.style.display = 'block';
@@ -160,12 +145,12 @@ fileInput.addEventListener('change', async () => {
   }
 });
 
-// 切换数据域时，若已解析过文件则刷新默认唯一键列
+// 切换数据域时，若已解析过文件则刷新自动识别的唯一键
 document.getElementById('domain').addEventListener('change', () => {
   if (!parsedColumns.length) return;
   const domain = document.getElementById('domain').value;
   const defaultKeys = computeDefaultKeys(parsedColumns, domain);
-  renderKeyChecks(parsedColumns, defaultKeys, domain);
+  renderKeyPreview(parsedColumns, defaultKeys, domain);
 });
 
 form.addEventListener('submit', async (e) => {
