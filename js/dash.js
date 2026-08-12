@@ -188,7 +188,6 @@ function renderKpis() {
   document.getElementById('kpis').innerHTML = kpis.map((k) => {
     if (!k.has) return '';
     const ch = calcChange(k.cur, k.prev);
-    const arrow = ch.sign > 0 ? '↑' : ch.sign < 0 ? '↓' : '—';
     const colorClass = ch.sign > 0 ? 'up' : ch.sign < 0 ? 'down' : 'flat';
     const pctText = Math.abs(ch.pct).toFixed(1) + '%';
     return `
@@ -197,7 +196,7 @@ function renderKpis() {
         <div class="kpi-val">${k.fmt(k.cur)}</div>
         <div class="kpi-meta">
           <span class="kpi-prev">上期 ${k.fmt(k.prev)}</span>
-          <span class="kpi-change tag ${colorClass}">${arrow} ${pctText} ${modeLabel}</span>
+          <span class="kpi-change tag ${colorClass}">${pctText} ${modeLabel}</span>
         </div>
       </div>`;
   }).join('');
@@ -311,10 +310,84 @@ function applyDateRangeFilter(rows) {
   });
 }
 
+function getSelectedShops() {
+  const wrap = document.getElementById('shopFilter');
+  if (!wrap) return [];
+  const boxes = wrap.querySelectorAll('.multi-select-options input[type="checkbox"]');
+  const vals = Array.from(boxes).filter((b) => b.checked).map((b) => b.value);
+  return vals;
+}
+
 function applyShopFilter(rows) {
-  const shop = document.getElementById('shopFilter').value;
-  if (!km.shop || !shop) return rows;
-  return rows.filter((r) => String(r[km.shop]) === shop);
+  if (!km.shop) return rows;
+  const selected = getSelectedShops();
+  if (!selected.length) return rows;
+  return rows.filter((r) => selected.includes(String(r[km.shop])));
+}
+
+function renderShopFilter(shops, selected) {
+  const wrap = document.getElementById('shopFilter');
+  if (!wrap) return;
+  const optsWrap = wrap.querySelector('.multi-select-options');
+  const toggle = wrap.querySelector('.multi-select-toggle');
+  if (!shops.length) {
+    optsWrap.innerHTML = '<label class="multi-select-option"><input type="checkbox" disabled>（无店铺列）</label>';
+    toggle.textContent = '无店铺';
+    return;
+  }
+  const selectedSet = new Set(selected);
+  optsWrap.innerHTML = shops.map((s) => {
+    const checked = selectedSet.has(s) ? 'checked' : '';
+    return `<label class="multi-select-option"><input type="checkbox" value="${escapeHtml(s)}" ${checked}> ${escapeHtml(s)}</label>`;
+  }).join('');
+  const count = selectedSet.size;
+  toggle.textContent = count === 0 ? '未选择店铺' : count === shops.length ? `全部店铺（${shops.length}个）` : `已选 ${count} 个店铺`;
+}
+
+function initShopFilter() {
+  const wrap = document.getElementById('shopFilter');
+  if (!wrap) return;
+  const toggle = wrap.querySelector('.multi-select-toggle');
+  const dropdown = wrap.querySelector('.multi-select-dropdown');
+
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = wrap.classList.toggle('open');
+    dropdown.style.display = open ? 'block' : 'none';
+  });
+
+  dropdown.addEventListener('click', (e) => e.stopPropagation());
+
+  dropdown.querySelector('[data-ms-action="all"]').addEventListener('click', () => {
+    dropdown.querySelectorAll('.multi-select-options input[type="checkbox"]').forEach((b) => b.checked = true);
+    updateShopFilterToggle();
+    if (allRows.length) load();
+  });
+  dropdown.querySelector('[data-ms-action="clear"]').addEventListener('click', () => {
+    dropdown.querySelectorAll('.multi-select-options input[type="checkbox"]').forEach((b) => b.checked = false);
+    updateShopFilterToggle();
+  });
+
+  wrap.addEventListener('change', (e) => {
+    if (e.target.matches('.multi-select-options input[type="checkbox"]')) {
+      updateShopFilterToggle();
+      if (allRows.length) load();
+    }
+  });
+
+  document.addEventListener('click', () => {
+    wrap.classList.remove('open');
+    dropdown.style.display = 'none';
+  });
+}
+
+function updateShopFilterToggle() {
+  const wrap = document.getElementById('shopFilter');
+  const toggle = wrap.querySelector('.multi-select-toggle');
+  const boxes = wrap.querySelectorAll('.multi-select-options input[type="checkbox"]');
+  const total = boxes.length;
+  const checked = wrap.querySelectorAll('.multi-select-options input[type="checkbox"]:checked').length;
+  toggle.textContent = checked === 0 ? '未选择店铺' : checked === total ? `全部店铺（${total}个）` : `已选 ${checked} 个店铺`;
 }
 
 function computePrevRange(sd, ed, mode) {
@@ -359,15 +432,13 @@ async function load() {
     km = {};
     for (const k in KEYMAP) km[k] = findCol(cols, KEYMAP[k]);
 
-    // 填充店铺下拉（全量）
-    const shopSel = document.getElementById('shopFilter');
-    const curShop = shopSel.value;
+    // 填充店铺多选（全量）
     if (km.shop) {
       const shops = [...new Set(allRows.map((r) => r[km.shop]).filter((x) => x != null && x !== ''))].sort();
-      shopSel.innerHTML = `<option value="">全部店铺（${shops.length}个）</option>` + shops.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-      if (shops.includes(curShop)) shopSel.value = curShop;
+      const selected = getSelectedShops();
+      renderShopFilter(shops, selected.length ? selected : shops);
     } else {
-      shopSel.innerHTML = '<option value="">（无店铺列）</option>';
+      renderShopFilter([], []);
     }
 
     // 默认日期范围：有数据的最大连续/最近区间
@@ -471,8 +542,9 @@ document.querySelectorAll('.side-nav a').forEach((a) => {
 document.getElementById('loadBtn').addEventListener('click', load);
 document.getElementById('exportCsv').addEventListener('click', exportCsv);
 document.getElementById('exportExcel').addEventListener('click', exportExcel);
-['startDate', 'endDate', 'shopFilter', 'compareMode'].forEach((id) => {
+['startDate', 'endDate', 'compareMode'].forEach((id) => {
   document.getElementById(id).addEventListener('change', () => { if (allRows.length) load(); });
 });
 
+initShopFilter();
 load();
