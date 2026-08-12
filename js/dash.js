@@ -241,12 +241,13 @@ async function load() {
       return;
     }
 
-    let rows = data.rows;
+    const allRows = data.rows;
+    let rows = allRows;
     // 数据源批次筛选
     const ft = document.getElementById('fileTagFilter').value;
     if (ft) rows = rows.filter((r) => r.__fileTag === ft);
 
-    const cols = Object.keys(rows[0] || {}).filter((c) => c !== '__fileTag');
+    const cols = Object.keys(rows[0] || allRows[0] || {}).filter((c) => c !== '__fileTag');
     const km = {};
     for (const k in KEYMAP) km[k] = findCol(cols, KEYMAP[k]);
 
@@ -278,12 +279,18 @@ async function load() {
     const numCols = numColsOf(cols, rows);
     last = { rows, km, numCols };
 
-    // 填充店铺下拉
+    // 填充店铺下拉（基于全量数据，不受当前批次筛选影响，避免"数据不全"的错觉）
     const shopSel = document.getElementById('shopFilter');
     const curShop = shopSel.value;
     if (km.shop) {
-      const shops = [...new Set(rows.map((r) => r[km.shop]).filter((x) => x != null && x !== ''))].sort();
-      shopSel.innerHTML = '<option value="">全部店铺</option>' + shops.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      const shops = [...new Set(allRows.map((r) => r[km.shop]).filter((x) => x != null && x !== ''))].sort();
+      const selectedCount = rows.filter((r) => r[km.shop] && r[km.shop].toString().trim()).length;
+      const allCount = allRows.length;
+      shopSel.innerHTML = `<option value="">全部店铺（${shops.length}个）</option>` + shops.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      // 如果当前筛选后没有任何数据，且选中了某个不存在的店铺，自动切回全部
+      if (selectedCount === 0 && curShop && !shops.includes(curShop)) {
+        shopSel.value = '';
+      }
     } else {
       shopSel.innerHTML = '<option value="">（无店铺列）</option>';
     }
