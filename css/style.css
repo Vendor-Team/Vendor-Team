@@ -89,14 +89,10 @@ th{background:var(--surface-2);position:sticky;top:0;}
 .fitem{display:flex;flex-direction:column;gap:5px;}
 .fitem label{font-size:11.5px;color:var(--muted);font-weight:500;}
 .fitem input,.fitem select{padding:9px 11px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;min-width:130px;}
-/* 多列唯一键选择器 */
-.key-checks{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--bg);max-height:170px;overflow:auto;}
-.key-checks label{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;transition:.18s;user-select:none;}
-.key-checks label:hover{border-color:var(--accent);}
-.key-checks label.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600;}
-.key-checks input{display:none;}
-.key-checks .auto{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-left:4px;}
-.key-checks .auto b{color:var(--accent);}
+/* 唯一键只读自动识别预览 */
+.key-preview{display:flex;flex-wrap:wrap;gap:8px;}
+.key-preview .pill{display:inline-flex;align-items:center;gap:7px;padding:6px 14px;border-radius:999px;background:var(--accent-soft);border:1px solid var(--accent);color:var(--accent);font-size:13px;font-weight:600;}
+.key-preview .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.7;}
 .btn.sm{padding:9px 16px;font-size:13px;}
 .section{display:none;padding:26px;animation:fade .35s ease;}
 .section.active{display:block;}
