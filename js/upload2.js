@@ -6,8 +6,10 @@ const btn = document.getElementById('submitBtn');
 const byInput = document.getElementById('by');
 const fileInput = document.getElementById('file');
 const fileTagInput = document.getElementById('fileTag');
-const keyColSelect = document.getElementById('keyCol');
+const keyChecks = document.getElementById('keyChecks');
+const keyAutoHint = document.getElementById('keyAutoHint');
 const keyWrap = document.getElementById('keyWrap');
+const KEY_SEP = '||';
 
 let parsedRows = [];
 let parsedColumns = [];
@@ -31,22 +33,80 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function getRowKey(row, keyField, idx) {
-  let key = keyField && row[keyField] != null ? String(row[keyField]) : '';
-  if (!key) key = '__idx_' + idx; // 空唯一键兜底，避免互相冲突
-  return key;
+function getRowKey(row, keyFields, idx) {
+  const parts = (keyFields || []).map((f) => (row[f] != null ? String(row[f]) : ''));
+  const key = parts.join(KEY_SEP);
+  return key || ('__idx_' + idx); // 空唯一键兜底，避免互相冲突
 }
 
-// 按唯一键去重：同一文件内重复订单只保留最后一条
-function dedupeRows(rows, keyField) {
+// 按唯一键去重：同一文件内重复记录只保留最后一条
+function dedupeRows(rows, keyFields) {
   const seen = new Map();
   let dupCount = 0;
   rows.forEach((row, idx) => {
-    const k = getRowKey(row, keyField, idx);
+    const k = getRowKey(row, keyFields, idx);
     if (seen.has(k)) dupCount++;
     seen.set(k, row); // 保留最后一条
   });
   return { rows: Array.from(seen.values()), dupCount };
+}
+
+// 模糊匹配列名（依次尝试候选规则，命中第一个即返回）
+function findCol(columns, candidates) {
+  for (const cand of candidates) {
+    const re = cand instanceof RegExp ? cand : new RegExp(cand);
+    const found = columns.find((c) => re.test(c.trim()));
+    if (found) return found;
+  }
+  return '';
+}
+
+function parseLastMergeKeys() {
+  const last = DB.getLastMergeKey();
+  if (!last) return null;
+  return last.split(KEY_SEP).map((s) => s.trim()).filter(Boolean);
+}
+
+// 按数据域给出默认唯一键列：
+//  销售域 → 订单（支持"订单号"）
+//  流量域 → 日期 + 店铺（复合键）
+//  其他域 / 用户上次手动选过的 → 沿用
+function computeDefaultKeys(columns, domain) {
+  const last = parseLastMergeKeys();
+  if (last && last.length && last.every((k) => columns.includes(k))) return last;
+  if (domain === 'sales') {
+    const o = findCol(columns, [/^订单$/, /订单/]);
+    return o ? [o] : [];
+  }
+  if (domain === 'traffic') {
+    const keys = [];
+    const date = findCol(columns, [/^日期$/, /日期/, /^dt$/i, /date/i]);
+    const shop = findCol(columns, [/^店铺$/, /店铺/, /门店/, /store/i, /shop/i]);
+    if (date) keys.push(date);
+    if (shop) keys.push(shop);
+    return keys;
+  }
+  return [];
+}
+
+function renderKeyChecks(columns, defaultKeys, domain) {
+  const sel = new Set(defaultKeys);
+  keyChecks.innerHTML = columns.map((c) => {
+    const on = sel.has(c) ? ' checked' : '';
+    return `<label class="${on ? 'on' : ''}"><input type="checkbox" value="${escapeHtml(c)}"${on}/>${escapeHtml(c)}</label>`;
+  }).join('');
+  keyChecks.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+    cb.addEventListener('change', () => cb.parentElement.classList.toggle('on', cb.checked));
+  });
+  const label = domain === 'sales' ? '销售域' : domain === 'traffic' ? '流量域' : '上次选择';
+  keyAutoHint.innerHTML = defaultKeys.length
+    ? `已按「${label}」默认选中：<b>${defaultKeys.join(' + ')}</b>`
+    : '未找到推荐列，请手动勾选（不选则用第一列）';
+}
+
+function getSelectedKeys() {
+  const checked = Array.from(keyChecks.querySelectorAll('input[type=checkbox]:checked')).map((cb) => cb.value);
+  return checked.length ? checked : [parsedColumns[0]];
 }
 
 async function parseFile(file) {
@@ -84,19 +144,11 @@ fileInput.addEventListener('change', async () => {
     parsedRows = rows;
     parsedColumns = columns;
     if (!fileTagInput.value) fileTagInput.value = file.name.replace(/\.[^.]+$/, '');
-    keyColSelect.innerHTML = columns.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-    const last = DB.getLastMergeKey();
     const domain = document.getElementById('domain').value;
-    let defaultKey = '';
-    if (last && columns.includes(last)) {
-      defaultKey = last;
-    } else if (domain === 'sales') {
-      // 销售域优先默认选中「订单」列（支持"订单"或"订单号"）
-      defaultKey = columns.find((c) => /^订单$/.test(c.trim())) || columns.find((c) => /订单/.test(c)) || '';
-    }
-    if (defaultKey) keyColSelect.value = defaultKey;
+    const defaultKeys = computeDefaultKeys(columns, domain);
+    renderKeyChecks(columns, defaultKeys, domain);
     keyWrap.style.display = 'block';
-    statusEl.textContent = `已解析 ${rows.length.toLocaleString()} 行 / ${columns.length} 列，请选"订单唯一键"列再上传`;
+    statusEl.textContent = `已解析 ${rows.length.toLocaleString()} 行 / ${columns.length} 列，请选择唯一键列再上传`;
   } catch (err) {
     statusEl.textContent = '解析失败';
     resultEl.style.display = 'block';
@@ -108,6 +160,14 @@ fileInput.addEventListener('change', async () => {
   }
 });
 
+// 切换数据域时，若已解析过文件则刷新默认唯一键列
+document.getElementById('domain').addEventListener('change', () => {
+  if (!parsedColumns.length) return;
+  const domain = document.getElementById('domain').value;
+  const defaultKeys = computeDefaultKeys(parsedColumns, domain);
+  renderKeyChecks(parsedColumns, defaultKeys, domain);
+});
+
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const file = fileInput.files[0];
@@ -117,7 +177,7 @@ form.addEventListener('submit', async (e) => {
   const domain = document.getElementById('domain').value;
   const by = byInput.value.trim() || '匿名';
   DB.setUploader(by);
-  const key = keyColSelect.value || parsedColumns[0] || '';
+  const key = getSelectedKeys();
   const fileTag = fileTagInput.value.trim() || file.name.replace(/\.[^.]+$/, '') || '未命名批次';
 
   // 同一文件内按唯一键去重，避免 upsert 报错：ON CONFLICT DO UPDATE command cannot affect row a second time
@@ -136,7 +196,7 @@ form.addEventListener('submit', async (e) => {
         statusEl.textContent = `已写入 ${written.toLocaleString()} / ${totalRows.toLocaleString()} 行…`;
       },
     });
-    DB.setLastMergeKey(key);
+    DB.setLastMergeKey(key.join(KEY_SEP));
     statusEl.textContent = '已存入 ✓';
     resultEl.style.display = 'block';
     resultEl.innerHTML = `
@@ -145,8 +205,8 @@ form.addEventListener('submit', async (e) => {
         数据域：<b>${domain}</b><br/>
         文件 / 批次：<b>${fileTag}</b>（以后可在「我的数据」里单独删除这份）<br/>
         行数：<b>${total.toLocaleString()}</b> ｜ 列数：<b>${parsedColumns.length}</b><br/>
-        ${dupCount ? `去重：已合并 <b>${dupCount}</b> 个重复订单（保留最后一条）<br/>` : ''}
-        唯一键列：<b>${key}</b>（同键会覆盖，不同键会追加）<br/>
+        ${dupCount ? `去重：已合并 <b>${dupCount}</b> 个重复记录（保留最后一条）<br/>` : ''}
+        唯一键列：<b>${key.join(' + ')}</b>（同键会覆盖，不同键会追加）<br/>
         更新人：<b>${by}</b> ｜ 时间：${new Date(payload.updatedAt).toLocaleString()}<br/>
         字段：${parsedColumns.join('、')}
       </div>`;
