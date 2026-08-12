@@ -68,23 +68,26 @@ window.DB = (function () {
   }
 
   // 写入/增量合并：
-  // options.key 指定用哪一列作为 row_key（如订单号）；新 key 追加，已存在 key 更新，未传到的保留。
+  // options.key 指定用哪些列作为 row_key（可传字符串或数组；多列用 || 拼接成复合键，如 日期||店铺）；
+  // 新 key 追加，已存在 key 更新，未传到的保留。
   // options.onProgress(written, total) 可选进度回调。
   async function writeDomain(domain, payload, options) {
     options = options || {};
-    const keyField = options.key || '';
+    const keyFields = Array.isArray(options.key) ? options.key : (options.key ? [options.key] : []);
     const uploader = payload.by || '';
     const now = new Date().toISOString();
     const rows = payload.rows || [];
     if (!rows.length) return 0;
 
     const fileTag = options.fileTag || '未命名批次';
+    const SEP = '||';
 
     // 双保险：再次按 row_key 去重，同一批内同一键只保留最后一条
     const uniqueMap = new Map();
     rows.forEach((row, idx) => {
-      let key = keyField && row[keyField] != null ? String(row[keyField]) : '';
-      if (!key) key = String(idx + 1); // 兜底：行号
+      const key = keyFields.length
+        ? keyFields.map((f) => (row[f] != null ? String(row[f]) : '')).join(SEP)
+        : String(idx + 1); // 兜底：行号
       uniqueMap.set(key, { row, idx });
     });
 
