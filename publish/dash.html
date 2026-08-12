@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>大盘 · 多平台运营仪表板</title>
+  <link rel="stylesheet" href="css/style.css?v=10" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="logo-dot"></span>运营仪表板</div>
+      <nav class="side-nav">
+        <a class="active" data-sec="overview"><span class="dot"></span>大盘流量与销售转化</a>
+        <a data-sec="category"><span class="dot"></span>品类产品分析</a>
+        <a data-sec="spu"><span class="dot"></span>SPU 分析</a>
+        <a data-sec="lifecycle"><span class="dot"></span>生命周期分析</a>
+      </nav>
+      <div class="side-foot">Vendor Team · 云端协作看板</div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar2">
+        <div>
+          <h1 id="secTitle">大盘流量与销售转化</h1>
+          <div class="sub" id="secSub">流量与销售趋势总览</div>
+        </div>
+        <button class="theme-toggle" id="themeToggle">深色模式</button>
+      </div>
+
+      <!-- ===== 大盘流量与销售转化 ===== -->
+      <section class="section active" id="sec-overview">
+        <div class="filterbar traffic-filter">
+          <div class="fitem">
+            <label>开始日期</label>
+            <input type="date" id="startDate" />
+          </div>
+          <div class="fitem">
+            <label>结束日期</label>
+            <input type="date" id="endDate" />
+          </div>
+          <div class="fitem" style="min-width:180px">
+            <label>店铺</label>
+            <div class="multi-select" id="shopFilter">
+              <button class="multi-select-toggle" type="button">全部店铺</button>
+              <div class="multi-select-dropdown">
+                <div class="multi-select-actions">
+                  <button type="button" class="linkbtn" data-ms-action="all">全选</button>
+                  <button type="button" class="linkbtn" data-ms-action="clear">清空</button>
+                </div>
+                <div class="multi-select-options"></div>
+              </div>
+            </div>
+          </div>
+          <div class="fitem">
+            <label>对比方式</label>
+            <select id="compareMode">
+              <option value="mom">环比</option>
+              <option value="yoy">同比</option>
+            </select>
+          </div>
+          <div class="filter-actions">
+            <button class="btn primary sm" id="loadBtn">查询</button>
+            <button class="btn sm" id="exportCsv">CSV</button>
+            <button class="btn sm" id="exportExcel">Excel</button>
+          </div>
+          <span id="updated" class="muted" style="align-self:center"></span>
+        </div>
+
+        <div id="empty" class="card glass" style="text-align:center;padding:40px;display:none">
+          <p class="muted">该板块读取「流量域」数据。当前还没有流量数据，去上传一份吧。</p>
+        </div>
+
+        <div id="board" style="display:none">
+          <div class="kpi-grid cols5" id="kpis"></div>
+
+          <div class="charts-2" style="margin-top:20px">
+            <div class="chart-wrap glass">
+              <h3>销售额趋势</h3>
+              <canvas id="trendSales" height="300"></canvas>
+            </div>
+            <div class="chart-wrap glass">
+              <h3>UV 趋势</h3>
+              <canvas id="trendUv" height="300"></canvas>
+            </div>
+          </div>
+
+          <div class="charts-2" style="margin-top:20px">
+            <div class="chart-wrap glass">
+              <h3>销量趋势</h3>
+              <canvas id="trendQty" height="300"></canvas>
+            </div>
+            <div class="chart-wrap glass">
+              <h3>店铺对比</h3>
+              <canvas id="shopChart" height="300"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-wrap glass" style="margin-top:20px;overflow:auto;max-height:380px">
+            <h3>数据明细（前 100 行）</h3>
+            <div id="tableWrap"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 占位 sections ===== -->
+      <section class="section" id="sec-category">
+        <div class="card glass" style="padding:48px;text-align:center"><p class="muted">品类产品分析 · 即将上线</p></div>
+      </section>
+      <section class="section" id="sec-spu">
+        <div class="card glass" style="padding:48px;text-align:center"><p class="muted">SPU 分析 · 即将上线</p></div>
+      </section>
+      <section class="section" id="sec-lifecycle">
+        <div class="card glass" style="padding:48px;text-align:center"><p class="muted">生命周期分析 · 即将上线</p></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="vendor/chart.umd.min.js"></script>
+  <script src="js/app.js?v=6"></script>
+  <script src="js/config.js"></script>
+  <script src="js/supabase-api.js"></script>
+  <script src="js/dash.js?v=12"></script>
+</body>
+</html>
