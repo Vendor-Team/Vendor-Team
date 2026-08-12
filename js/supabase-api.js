@@ -75,18 +75,23 @@ window.DB = (function () {
     if (!rows.length) return 0;
 
     const fileTag = options.fileTag || '未命名批次';
-    const bodies = rows.map((row, idx) => {
+
+    // 双保险：再次按 row_key 去重，同一批内同一键只保留最后一条
+    const uniqueMap = new Map();
+    rows.forEach((row, idx) => {
       let key = keyField && row[keyField] != null ? String(row[keyField]) : '';
       if (!key) key = String(idx + 1); // 兜底：行号
-      return {
-        domain,
-        row_key: key,
-        uploader,
-        updated_at: now,
-        file_tag: fileTag,
-        row_data: row,
-      };
+      uniqueMap.set(key, { row, idx });
     });
+
+    const bodies = Array.from(uniqueMap.entries()).map(([key, { row }]) => ({
+      domain,
+      row_key: key,
+      uploader,
+      updated_at: now,
+      file_tag: fileTag,
+      row_data: row,
+    }));
 
     let written = 0;
     for (let i = 0; i < bodies.length; i += BATCH) {
