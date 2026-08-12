@@ -115,11 +115,17 @@ th{background:var(--surface-2);position:sticky;top:0;}
 .tbl th{background:var(--surface-2);color:var(--muted);position:sticky;top:0;}
 .tbl tbody tr:nth-child(even){background:var(--surface);}
 
-/* ===== 统一外壳：内嵌页隐藏自带顶栏/主题按钮 ===== */
+/* ===== 统一外壳：内嵌页隐藏自带顶栏/主题按钮/hero/页脚 ===== */
 body.embed .topbar{display:none!important;}
 body.embed .theme-toggle{display:none!important;}
+body.embed .hero{display:none!important;}
+body.embed .footer{display:none!important;}
+body.embed .embed-hide{display:none!important;}
+body.embed .container{padding-top:18px;padding-bottom:32px;}
+body.embed{background:var(--bg);}
 
 /* ===== 内嵌框架（上传/我的数据 融进外壳） ===== */
-iframe.stage{width:100%;height:calc(100vh - 132px);border:0;display:block;background:var(--bg);}
-.section--stage{padding:18px 22px;}
+iframe.stage{width:100%;height:calc(100vh - 132px);border:0;display:block;background:transparent;}
+.section--stage{padding:0;background:var(--bg);}
+.section--stage .container{max-width:none;}
 @media(max-width:1000px){iframe.stage{height:calc(100vh - 170px);}}
