@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>团队数据看板 · 统一工作台</title>
-  <link rel="stylesheet" href="css/style.css?v=6" />
+  <link rel="stylesheet" href="css/style.css?v=8" />
 </head>
 <body>
   <div class="app-shell">
@@ -42,17 +42,7 @@
 
       <!-- ===== 大盘流量与销售转化（内联） ===== -->
       <section class="section active" id="sec-overview">
-        <div class="filterbar">
-          <div class="fitem">
-            <label>数据域</label>
-            <select id="domain">
-              <option value="sales">销售域</option>
-              <option value="returns">退货域</option>
-              <option value="price">价格域</option>
-              <option value="inventory">库存域</option>
-              <option value="traffic">流量域</option>
-            </select>
-          </div>
+        <div class="filterbar traffic-filter">
           <div class="fitem">
             <label>开始日期</label>
             <input type="date" id="startDate" />
@@ -66,25 +56,22 @@
             <select id="shopFilter"><option value="">全部店铺</option></select>
           </div>
           <div class="fitem">
-            <label>数据源批次</label>
-            <select id="fileTagFilter"><option value="">全部</option></select>
+            <label>对比方式</label>
+            <select id="compareMode">
+              <option value="mom">环比</option>
+              <option value="yoy">同比</option>
+            </select>
           </div>
-          <div class="fitem">
-            <label>主指标</label>
-            <select id="metricSel"></select>
+          <div class="filter-actions">
+            <button class="btn primary sm" id="loadBtn">查询</button>
+            <button class="btn sm" id="exportCsv">CSV</button>
+            <button class="btn sm" id="exportExcel">Excel</button>
           </div>
-          <div class="fitem">
-            <label>&nbsp;</label>
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
-              <input type="checkbox" id="splitShop" /> 按店铺分线
-            </label>
-          </div>
-          <button class="btn primary sm" id="loadBtn">查询</button>
           <span id="updated" class="muted" style="align-self:center"></span>
         </div>
 
         <div id="empty" class="card glass" style="text-align:center;padding:40px;display:none">
-          <p class="muted">请选择条件后点击「查询」。</p>
+          <p class="muted">该板块读取「流量域」数据。当前还没有流量数据，去上传一份吧。</p>
         </div>
 
         <div id="board" style="display:none">
@@ -92,18 +79,24 @@
 
           <div class="charts-2" style="margin-top:20px">
             <div class="chart-wrap glass">
-              <h3 id="trendTitle">销售额趋势</h3>
-              <canvas id="trendChart" height="300"></canvas>
+              <h3>销售额趋势</h3>
+              <canvas id="trendSales" height="300"></canvas>
             </div>
             <div class="chart-wrap glass">
-              <h3 id="dimTitle">店铺 Top</h3>
-              <canvas id="dimChart" height="300"></canvas>
+              <h3>UV 趋势</h3>
+              <canvas id="trendUv" height="300"></canvas>
             </div>
           </div>
 
-          <div class="chart-wrap glass" style="margin-top:20px">
-            <h3>指标叠加趋势（多指标同图）</h3>
-            <canvas id="multiChart" height="300"></canvas>
+          <div class="charts-2" style="margin-top:20px">
+            <div class="chart-wrap glass">
+              <h3>销量趋势</h3>
+              <canvas id="trendQty" height="300"></canvas>
+            </div>
+            <div class="chart-wrap glass">
+              <h3>店铺对比</h3>
+              <canvas id="shopChart" height="300"></canvas>
+            </div>
           </div>
 
           <div class="chart-wrap glass" style="margin-top:20px;overflow:auto;max-height:380px">
@@ -130,7 +123,7 @@
   <script src="js/app.js?v=6"></script>
   <script src="js/config.js?v=4"></script>
   <script src="js/supabase-api.js?v=4"></script>
-  <script src="js/dash.js?v=7"></script>
+  <script src="js/dash.js?v=8"></script>
   <script>
   (function () {
     const SEC_META = {
