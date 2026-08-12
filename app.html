@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>团队数据看板 · 统一工作台</title>
+  <link rel="stylesheet" href="css/style.css?v=5" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="logo-dot"></span>团队数据看板</div>
+      <nav class="side-nav">
+        <a data-sec="upload"><span class="dot"></span>数据上传</a>
+        <a data-sec="mydata"><span class="dot"></span>我的数据</a>
+        <a class="active" data-sec="overview"><span class="dot"></span>大盘流量与销售转化</a>
+        <a data-sec="category"><span class="dot"></span>品类产品分析</a>
+        <a data-sec="spu"><span class="dot"></span>SPU 分析</a>
+        <a data-sec="lifecycle"><span class="dot"></span>生命周期分析</a>
+      </nav>
+      <div class="side-foot">Vendor Team · 云端协作看板<br/>有链接即可用 · 无需登录</div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar2">
+        <div>
+          <h1 id="secTitle">大盘流量与销售转化</h1>
+          <div class="sub" id="secSub">流量与销售趋势总览</div>
+        </div>
+        <button class="theme-toggle" id="themeToggle">深色模式</button>
+      </div>
+
+      <!-- ===== 数据上传（内嵌） ===== -->
+      <section class="section section--stage" id="sec-upload">
+        <iframe class="stage" src="upload2.html?embed=1" title="数据上传"></iframe>
+      </section>
+
+      <!-- ===== 我的数据（内嵌） ===== -->
+      <section class="section section--stage" id="sec-mydata">
+        <iframe class="stage" src="mydata.html?embed=1" title="我的数据"></iframe>
+      </section>
+
+      <!-- ===== 大盘流量与销售转化（内联） ===== -->
+      <section class="section active" id="sec-overview">
+        <div class="filterbar">
+          <div class="fitem">
+            <label>数据域</label>
+            <select id="domain">
+              <option value="sales">销售域</option>
+              <option value="returns">退货域</option>
+              <option value="price">价格域</option>
+              <option value="inventory">库存域</option>
+              <option value="traffic">流量域</option>
+            </select>
+          </div>
+          <div class="fitem">
+            <label>开始日期</label>
+            <input type="date" id="startDate" />
+          </div>
+          <div class="fitem">
+            <label>结束日期</label>
+            <input type="date" id="endDate" />
+          </div>
+          <div class="fitem">
+            <label>店铺</label>
+            <select id="shopFilter"><option value="">全部店铺</option></select>
+          </div>
+          <div class="fitem">
+            <label>数据源批次</label>
+            <select id="fileTagFilter"><option value="">全部</option></select>
+          </div>
+          <div class="fitem">
+            <label>主指标</label>
+            <select id="metricSel"></select>
+          </div>
+          <div class="fitem">
+            <label>&nbsp;</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="splitShop" /> 按店铺分线
+            </label>
+          </div>
+          <button class="btn primary sm" id="loadBtn">查询</button>
+          <span id="updated" class="muted" style="align-self:center"></span>
+        </div>
+
+        <div id="empty" class="card glass" style="text-align:center;padding:40px;display:none">
+          <p class="muted">请选择条件后点击「查询」。</p>
+        </div>
+
+        <div id="board" style="display:none">
+          <div class="kpi-grid cols5" id="kpis"></div>
+
+          <div class="charts-2" style="margin-top:20px">
+            <div class="chart-wrap glass">
+              <h3 id="trendTitle">销售额趋势</h3>
+              <canvas id="trendChart" height="300"></canvas>
+            </div>
+            <div class="chart-wrap glass">
+              <h3 id="dimTitle">店铺 Top</h3>
+              <canvas id="dimChart" height="300"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-wrap glass" style="margin-top:20px">
+            <h3>指标叠加趋势（多指标同图）</h3>
+            <canvas id="multiChart" height="300"></canvas>
+          </div>
+
+          <div class="chart-wrap glass" style="margin-top:20px;overflow:auto;max-height:380px">
+            <h3>数据明细（前 100 行）</h3>
+            <div id="tableWrap"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 占位 sections ===== -->
+      <section class="section" id="sec-category">
+        <div class="card glass" style="padding:48px;text-align:center"><p class="muted">品类产品分析 · 即将上线</p></div>
+      </section>
+      <section class="section" id="sec-spu">
+        <div class="card glass" style="padding:48px;text-align:center"><p class="muted">SPU 分析 · 即将上线</p></div>
+      </section>
+      <section class="section" id="sec-lifecycle">
+        <div class="card glass" style="padding:48px;text-align:center"><p class="muted">生命周期分析 · 即将上线</p></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="vendor/chart.umd.min.js?v=4"></script>
+  <script src="js/app.js?v=5"></script>
+  <script src="js/config.js?v=4"></script>
+  <script src="js/supabase-api.js?v=4"></script>
+  <script src="js/dash.js?v=5"></script>
+  <script>
+  (function () {
+    const SEC_META = {
+      upload: ['数据上传', '选数据域，传 Excel/CSV，自动存入云端数据库'],
+      mydata: ['我的数据', '销售域 KPI、图表与明细'],
+      overview: ['大盘流量与销售转化', '流量与销售趋势总览'],
+      category: ['品类产品分析', '品类销售与结构分析'],
+      spu: ['SPU 分析', 'SPU 销售明细与排行'],
+      lifecycle: ['生命周期分析', '产品生命周期对比'],
+    };
+    const titleEl = document.getElementById('secTitle');
+    const subEl = document.getElementById('secSub');
+    function activate(sec) {
+      document.querySelectorAll('.side-nav a').forEach((x) => x.classList.remove('active'));
+      const a = document.querySelector('.side-nav a[data-sec="' + sec + '"]');
+      if (a) a.classList.add('active');
+      document.querySelectorAll('.section').forEach((s) => s.classList.remove('active'));
+      const secEl = document.getElementById('sec-' + sec);
+      if (secEl) secEl.classList.add('active');
+      if (SEC_META[sec]) { titleEl.textContent = SEC_META[sec][0]; subEl.textContent = SEC_META[sec][1]; }
+    }
+    document.querySelectorAll('.side-nav a').forEach((a) => {
+      a.addEventListener('click', () => activate(a.getAttribute('data-sec')));
+    });
+    const init = document.querySelector('.side-nav a.active');
+    if (init) activate(init.getAttribute('data-sec'));
+
+    // 内嵌 iframe 主题同步（初次加载时把外壳主题推过去）
+    document.querySelectorAll('iframe.stage').forEach((f) => {
+      f.addEventListener('load', () => {
+        try { f.contentWindow.postMessage({ type: 'theme', theme: document.documentElement.getAttribute('data-theme') }, '*'); } catch (_) {}
+      });
+    });
+  })();
+  </script>
+</body>
+</html>
