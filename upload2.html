@@ -4,9 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>上传数据 · 团队看板</title>
-  <link rel="stylesheet" href="css/style.css?v=5" />
+  <link rel="stylesheet" href="css/style.css?v=6" />
 </head>
 <body>
+  <script>if(/[?&]embed=1/.test(location.search))document.body.classList.add('embed');</script>
   <header class="topbar">
     <nav class="nav">
       <a href="index.html">首页</a>
@@ -56,12 +57,12 @@
       <div id="result" class="glass" style="margin-top:20px;padding:16px;display:none;border-radius:14px"></div>
     </section>
 
-    <p class="muted" style="text-align:center;margin-top:24px;font-size:13px">
+    <p class="muted embed-hide" style="text-align:center;margin-top:24px;font-size:13px">
       传完后去 <a href="mydata.html">「我的数据」</a> 看板，选同一个域即可看到刚传的内容。
     </p>
   </main>
 
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=6"></script>
   <script src="js/config.js?v=4"></script>
   <script src="js/supabase-api.js?v=4"></script>
   <script src="js/upload2.js?v=4"></script>
