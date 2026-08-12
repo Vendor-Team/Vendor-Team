@@ -31,6 +31,24 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+function getRowKey(row, keyField, idx) {
+  let key = keyField && row[keyField] != null ? String(row[keyField]) : '';
+  if (!key) key = '__idx_' + idx; // 空唯一键兜底，避免互相冲突
+  return key;
+}
+
+// 按唯一键去重：同一文件内重复订单只保留最后一条
+function dedupeRows(rows, keyField) {
+  const seen = new Map();
+  let dupCount = 0;
+  rows.forEach((row, idx) => {
+    const k = getRowKey(row, keyField, idx);
+    if (seen.has(k)) dupCount++;
+    seen.set(k, row); // 保留最后一条
+  });
+  return { rows: Array.from(seen.values()), dupCount };
+}
+
 async function parseFile(file) {
   const isCsv = /\.csv$/i.test(file.name);
   let columns = [], rows = [];
@@ -94,7 +112,11 @@ form.addEventListener('submit', async (e) => {
   const key = keyColSelect.value || parsedColumns[0] || '';
   const fileTag = fileTagInput.value.trim() || file.name.replace(/\.[^.]+$/, '') || '未命名批次';
 
-  const payload = { by, updatedAt: new Date().toISOString(), rows: parsedRows };
+  // 同一文件内按唯一键去重，避免 upsert 报错：ON CONFLICT DO UPDATE command cannot affect row a second time
+  const { rows: uniqueRows, dupCount } = dedupeRows(parsedRows, key);
+  if (!uniqueRows.length) { statusEl.textContent = '去重后没有有效数据'; return; }
+
+  const payload = { by, updatedAt: new Date().toISOString(), rows: uniqueRows };
 
   btn.disabled = true;
   statusEl.textContent = '上传中…';
@@ -115,6 +137,7 @@ form.addEventListener('submit', async (e) => {
         数据域：<b>${domain}</b><br/>
         文件 / 批次：<b>${fileTag}</b>（以后可在「我的数据」里单独删除这份）<br/>
         行数：<b>${total.toLocaleString()}</b> ｜ 列数：<b>${parsedColumns.length}</b><br/>
+        ${dupCount ? `去重：已合并 <b>${dupCount}</b> 个重复订单（保留最后一条）<br/>` : ''}
         唯一键列：<b>${key}</b>（同键会覆盖，不同键会追加）<br/>
         更新人：<b>${by}</b> ｜ 时间：${new Date(payload.updatedAt).toLocaleString()}<br/>
         字段：${parsedColumns.join('、')}
