@@ -41,11 +41,26 @@ window.DB = (function () {
   }
 
   // 读取某域全部行；返回 { by, updatedAt, rows }
-  async function readDomain(domain) {
-    const r = await req('GET', '?domain=eq.' + encodeURIComponent(domain) +
-      '&select=domain,row_key,uploader,updated_at,row_data,file_tag&order=row_key');
-    const items = await r.json();
-    if (!Array.isArray(items) || !items.length) return null;
+  // Supabase REST 默认单次最多返回 1000 行，这里用 limit/offset 循环拉取。
+  async function readDomain(domain, options) {
+    options = options || {};
+    const pageSize = 1000;
+    const allItems = [];
+    let offset = 0;
+    while (true) {
+      const r = await req('GET', '?domain=eq.' + encodeURIComponent(domain) +
+        '&select=domain,row_key,uploader,updated_at,row_data,file_tag&order=row_key' +
+        '&limit=' + pageSize + '&offset=' + offset);
+      const items = await r.json();
+      if (!Array.isArray(items) || !items.length) break;
+      allItems.push(...items);
+      if (items.length < pageSize) break;
+      offset += pageSize;
+      if (options.onProgress) options.onProgress(allItems.length);
+    }
+
+    if (!allItems.length) return null;
+    const items = allItems;
     const filesMap = {};
     items.forEach((it) => {
       const ft = it.file_tag || '未命名批次';
