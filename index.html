@@ -4,48 +4,101 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>团队数据看板</title>
-  <link rel="stylesheet" href="css/style.css?v=5" />
+  <link rel="stylesheet" href="css/style.css?v=6" />
+  <style>
+    .landing-hero{position:relative;overflow:hidden;padding:72px 28px 56px;text-align:center;}
+    .landing-hero::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,rgba(99,102,241,.18),transparent 60%);pointer-events:none;}
+    .landing-hero h1{font-size:clamp(32px,5vw,48px);font-weight:750;margin:0 0 16px;line-height:1.15;letter-spacing:-1px;}
+    .gradient-text{background:linear-gradient(135deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+    .landing-hero p{font-size:18px;color:var(--muted);max-width:620px;margin:0 auto 32px;line-height:1.7;}
+    .hero-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
+    .hero-actions .btn{padding:13px 26px;font-size:15px;border-radius:14px;}
+    .hero-actions .btn.primary{box-shadow:0 8px 28px rgba(99,102,241,.35);}
+    .features{max-width:1080px;margin:0 auto;padding:0 28px 64px;}
+    .features h2{font-size:24px;font-weight:700;margin:0 0 8px;text-align:center;}
+    .features .subhead{text-align:center;color:var(--muted);margin:0 0 36px;font-size:15px;}
+    .feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
+    .feature-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px 24px;transition:.25s;position:relative;overflow:hidden;}
+    .feature-card:hover{transform:translateY(-5px);box-shadow:var(--shadow);border-color:rgba(99,102,241,.25);}
+    .feature-card .icon{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:18px;background:linear-gradient(135deg,var(--accent-soft),rgba(139,92,246,.12));color:var(--accent);}
+    .feature-card .icon svg{width:24px;height:24px;stroke-width:2;}
+    .feature-card h3{margin:0 0 8px;font-size:18px;font-weight:650;}
+    .feature-card p{margin:0;color:var(--muted);font-size:14px;line-height:1.65;}
+    .feature-card .badge{position:absolute;top:16px;right:16px;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;}
+    .big-card{grid-column:span 2;background:linear-gradient(135deg,var(--accent-soft),rgba(139,92,246,.08));}
+    @media(max-width:860px){.feature-grid{grid-template-columns:1fr;}.big-card{grid-column:span 1;}.landing-hero{padding:52px 20px 40px;}}
+  </style>
 </head>
 <body>
   <header class="topbar">
     <div class="brand"><span class="logo-dot"></span> 团队数据看板</div>
     <nav class="nav">
       <a href="index.html" class="active">首页</a>
-      <a href="mydata.html">我的数据</a>
+      <a href="app.html">工作台</a>
       <a href="upload2.html">上传数据</a>
     </nav>
     <button id="themeToggle" class="theme-toggle" aria-label="切换主题">深色模式</button>
   </header>
 
-  <main class="container">
-    <section class="hero glass">
-      <h1>把团队数据，变成一眼看懂的看板</h1>
-      <p class="muted">分人分域上传 Excel，看板立刻读得到。有链接即可访问，无需注册、无需登录、无需服务器。</p>
+  <main>
+    <section class="landing-hero glass">
+      <h1>把团队数据，变成<span class="gradient-text">一眼看懂</span>的看板</h1>
+      <p>分人分域上传 Excel，看板立刻读得到。有链接即可访问，无需注册、无需登录、无需服务器。</p>
       <div class="hero-actions">
         <a href="app.html" class="btn primary">进入统一工作台</a>
         <a href="upload2.html" class="btn">上传 Excel</a>
       </div>
     </section>
 
-    <section class="grid">
-      <a href="app.html" class="card glass">
-        <div class="ico"></div>
-        <h3>统一工作台（推荐）</h3>
-        <p class="muted">上传数据、销售看板、大盘全部在一个界面里切换，左侧导航一站式搞定，无需在多个页面间跳。</p>
-      </a>
-      <a href="dash.html" class="card glass">
-        <div class="ico"></div>
-        <h3>大盘（独立页）</h3>
-        <p class="muted">大盘流量与销售转化模块，独立页面版本。</p>
-      </a>
-    </section>
+    <section class="features">
+      <h2>一个链接，搞定数据协作</h2>
+      <p class="subhead">上传、存储、分析、分享，全部在浏览器里完成。</p>
+      <div class="feature-grid">
+        <a href="upload2.html" class="feature-card">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <h3>分域上传 Excel/CSV</h3>
+          <p>销售、退货、价格、库存、流量，按域隔离。自动按唯一键增量合并，重复订单不冲突。</p>
+        </a>
 
-    <p class="muted" style="text-align:center;margin-top:8px;font-size:13px">
-      注：「运营看板（vendor-dash 风格）」需配合本地 Node 服务，后续会出纯静态版。
-    </p>
+        <a href="app.html" class="feature-card big-card">
+          <span class="badge">推荐</span>
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          </div>
+          <h3>统一工作台</h3>
+          <p>左侧导航，主区切换。数据上传、我的数据、大盘流量与销售转化、品类/SPU/生命周期分析，全部在一个页面内完成，无需在多个标签页之间来回跳转。深色/浅色主题一键切换。</p>
+        </a>
+
+        <a href="app.html" class="feature-card">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <h3>自动 KPI 与图表</h3>
+          <p>销售额、毛利、订单数、销量、转化率……系统自动识别字段并出图，支持按店铺、月份、品类多维下钻。</p>
+        </a>
+
+        <a href="app.html" class="feature-card">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3>多人协作，免登录</h3>
+          <p>把链接丢到群里，团队任何人都能上传或查看。基于 Supabase 云端数据库，数据实时同步。</p>
+        </a>
+
+        <a href="app.html" class="feature-card">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <h3>按批次管理数据</h3>
+          <p>每次上传可命名批次，后续能单独删除某一份上传记录，不影响其他人传的数据。</p>
+        </a>
+      </div>
+    </section>
   </main>
 
   <footer class="footer muted">有链接即可访问 · 无需注册登录</footer>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>
