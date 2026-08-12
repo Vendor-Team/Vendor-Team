@@ -86,7 +86,15 @@ fileInput.addEventListener('change', async () => {
     if (!fileTagInput.value) fileTagInput.value = file.name.replace(/\.[^.]+$/, '');
     keyColSelect.innerHTML = columns.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     const last = DB.getLastMergeKey();
-    if (last && columns.includes(last)) keyColSelect.value = last;
+    const domain = document.getElementById('domain').value;
+    let defaultKey = '';
+    if (last && columns.includes(last)) {
+      defaultKey = last;
+    } else if (domain === 'sales') {
+      // 销售域优先默认选中「订单」列（支持"订单"或"订单号"）
+      defaultKey = columns.find((c) => /^订单$/.test(c.trim())) || columns.find((c) => /订单/.test(c)) || '';
+    }
+    if (defaultKey) keyColSelect.value = defaultKey;
     keyWrap.style.display = 'block';
     statusEl.textContent = `已解析 ${rows.length.toLocaleString()} 行 / ${columns.length} 列，请选"订单唯一键"列再上传`;
   } catch (err) {
