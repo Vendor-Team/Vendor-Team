@@ -54,7 +54,11 @@ window.DB = (function () {
       if (it.updated_at > filesMap[ft].updatedAt) filesMap[ft].updatedAt = it.updated_at;
     });
     const files = Object.values(filesMap).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    const rows = items.map((it) => it.row_data);
+    const rows = items.map((it) => {
+      const rd = Object.assign({}, it.row_data || {});
+      rd.__fileTag = it.file_tag || '未命名批次';
+      return rd;
+    });
     return {
       by: items[0].uploader,
       updatedAt: items[items.length - 1].updated_at,

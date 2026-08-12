@@ -33,6 +33,14 @@
           <option value="inventory">库存域</option>
         </select>
       </div>
+      <div class="fitem">
+        <label>数据源（上传批次）</label>
+        <select id="fileTagFilter"><option value="">全部</option></select>
+      </div>
+      <div class="fitem">
+        <label>月份</label>
+        <select id="monthFilter"><option value="">全部</option></select>
+      </div>
       <button id="loadBtn" class="btn primary sm">读取数据</button>
       <span id="updated" class="muted" style="align-self:center"></span>
     </div>
@@ -48,12 +56,32 @@
 
     <div id="board" style="display:none">
       <div class="kpi-grid cols5" id="kpis"></div>
+
       <div class="charts-2" style="margin-top:20px">
-        <div class="chart-wrap glass"><h3 id="chartTitle">分布</h3><canvas id="barChart" height="260"></canvas></div>
-        <div class="chart-wrap glass" style="padding:16px;overflow:auto;max-height:340px">
-          <h3>数据预览（前 50 行）</h3>
-          <div id="tableWrap" style="font-size:12px"></div>
+        <div class="chart-wrap glass">
+          <h3 id="shopTitle">各店铺销售额 Top</h3>
+          <canvas id="shopChart" height="300"></canvas>
         </div>
+        <div class="chart-wrap glass">
+          <h3 id="monthTitle">月份销售额趋势</h3>
+          <canvas id="monthChart" height="300"></canvas>
+        </div>
+      </div>
+
+      <div class="charts-2" style="margin-top:20px">
+        <div class="chart-wrap glass">
+          <h3 id="catTitle">品类销售额 Top</h3>
+          <canvas id="catChart" height="300"></canvas>
+        </div>
+        <div class="chart-wrap glass">
+          <h3>销售等级分布</h3>
+          <canvas id="gradeChart" height="300"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-wrap glass" style="margin-top:20px">
+        <h3>数据预览（前 50 行）</h3>
+        <div id="tableWrap" style="font-size:12px"></div>
       </div>
     </div>
   </main>
