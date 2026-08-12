@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>团队数据看板 · 统一工作台</title>
-  <link rel="stylesheet" href="css/style.css?v=9" />
+  <link rel="stylesheet" href="css/style.css?v=10" />
 </head>
 <body>
   <div class="app-shell">
@@ -51,9 +51,18 @@
             <label>结束日期</label>
             <input type="date" id="endDate" />
           </div>
-          <div class="fitem">
+          <div class="fitem" style="min-width:180px">
             <label>店铺</label>
-            <select id="shopFilter"><option value="">全部店铺</option></select>
+            <div class="multi-select" id="shopFilter">
+              <button class="multi-select-toggle" type="button">全部店铺</button>
+              <div class="multi-select-dropdown">
+                <div class="multi-select-actions">
+                  <button type="button" class="linkbtn" data-ms-action="all">全选</button>
+                  <button type="button" class="linkbtn" data-ms-action="clear">清空</button>
+                </div>
+                <div class="multi-select-options"></div>
+              </div>
+            </div>
           </div>
           <div class="fitem">
             <label>对比方式</label>
@@ -123,7 +132,7 @@
   <script src="js/app.js?v=6"></script>
   <script src="js/config.js?v=4"></script>
   <script src="js/supabase-api.js?v=11"></script>
-  <script src="js/dash.js?v=10"></script>
+  <script src="js/dash.js?v=11"></script>
   <script>
   (function () {
     const SEC_META = {
