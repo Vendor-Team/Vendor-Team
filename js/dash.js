@@ -159,6 +159,8 @@ function fmtNum(n) {
 function renderKpis() {
   const days = getUniqueDays(currentRows, km.date) || 1;
   const prevDays = getUniqueDays(prevRows, km.date) || 1;
+  const mode = document.getElementById('compareMode').value || 'mom';
+  const modeLabel = mode === 'yoy' ? '同比' : '环比';
 
   const curSales = getFieldSum(currentRows, km.sales);
   const prevSales = getFieldSum(prevRows, km.sales);
@@ -193,7 +195,10 @@ function renderKpis() {
       <div class="kpi glass ${colorClass}">
         <div class="kpi-label">${k.label}</div>
         <div class="kpi-val">${k.fmt(k.cur)}</div>
-        <div class="kpi-change"><span class="arrow">${arrow}</span> ${pctText} vs 上期</div>
+        <div class="kpi-meta">
+          <span class="kpi-prev">上期 ${k.fmt(k.prev)}</span>
+          <span class="kpi-change tag ${colorClass}">${arrow} ${pctText} ${modeLabel}</span>
+        </div>
       </div>`;
   }).join('');
 }
