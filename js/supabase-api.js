@@ -85,6 +85,7 @@ window.DB = (function () {
   // 写入/增量合并：
   // options.key 指定用哪些列作为 row_key（可传字符串或数组；多列用 || 拼接成复合键，如 日期||店铺）；
   // 新 key 追加，已存在 key 更新，未传到的保留。
+  // ★ 全量写入，无数量上限：按 BATCH 行一批循环 POST 直到写完，禁止加"最多 N 行"截断 ★
   // options.onProgress(written, total) 可选进度回调。
   async function writeDomain(domain, payload, options) {
     options = options || {};
