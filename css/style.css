@@ -133,3 +133,18 @@ iframe.stage{width:100%;height:calc(100vh - 132px);border:0;display:block;backgr
 .section--stage{padding:0;background:var(--bg);}
 .section--stage .container{max-width:none;}
 @media(max-width:1000px){iframe.stage{height:calc(100vh - 170px);}}
+
+/* ===== 流量大盘 KPI 涨跌色 ===== */
+.kpi-change{font-size:13px;margin-top:8px;font-weight:600;display:flex;align-items:center;gap:4px;}
+.kpi.up .kpi-change{color:#16a34a;}
+.kpi.down .kpi-change{color:#dc2626;}
+.kpi.flat .kpi-change{color:var(--muted);}
+.kpi.up .kpi-val{background:linear-gradient(135deg,#16a34a,#22c55e);}
+.kpi.down .kpi-val{background:linear-gradient(135deg,#dc2626,#ef4444);}
+
+/* ===== 流量大盘筛选栏 ===== */
+.traffic-filter{gap:14px;}
+.traffic-filter .filter-actions{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;}
+.traffic-filter #exportCsv{background:var(--surface-2);color:var(--text);}
+.traffic-filter #exportExcel{background:#f97316;color:#fff;border-color:#f97316;}
+@media(max-width:1000px){.traffic-filter .filter-actions{width:100%;}}
