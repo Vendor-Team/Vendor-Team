@@ -330,6 +330,7 @@ const SEC_META = {
 document.querySelectorAll('.side-nav a').forEach((a) => {
   a.addEventListener('click', () => {
     const sec = a.getAttribute('data-sec');
+    if (!SEC_META[sec]) return; // 交给外层统一外壳处理（上传/我的数据等）
     document.querySelectorAll('.side-nav a').forEach((x) => x.classList.remove('active'));
     a.classList.add('active');
     document.querySelectorAll('.section').forEach((s) => s.classList.remove('active'));
