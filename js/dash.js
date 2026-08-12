@@ -1,6 +1,6 @@
-// dash.js —— 大盘流量与销售转化（对标 vendor-dash 大盘模块）
-// 智能识别日期 / 数值 / 维度列；时间序列趋势 + 多指标叠加 + 维度对比；
-// 支持日期范围、店铺、数据源批次筛选；兼容 $ % , 等数值格式。
+// dash.js —— 大盘流量与销售转化
+// 固定读取「流量域」数据，自动识别日期/店铺/销售额/销量/UV 等字段，
+// 输出 KPI 卡片（vs 上期）+ 趋势图 + 店铺对比 + 明细表。
 
 const charts = {};
 const PALETTE = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#3b82f6', '#14b8a6', '#a855f7'];
@@ -9,7 +9,6 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// 数值清洗：兼容 $、￥、%、逗号、空格
 const cleanNum = (v) => {
   if (v == null) return 0;
   const s = String(v).replace(/[,%$￥\s¥]/g, '');
@@ -21,7 +20,6 @@ const isNumLike = (v) => {
   return !isNaN(Number(String(v).replace(/[,%$￥\s¥]/g, '')));
 };
 
-// 日期解析 → YYYY-MM-DD（用于范围筛选）；返回 null 表示无法解析
 function parseDate(v) {
   if (!v) return null;
   const s = String(v).trim();
@@ -31,7 +29,6 @@ function parseDate(v) {
   if (m) return m[1] + '-' + String(m[2]).padStart(2, '0') + '-01';
   return null;
 }
-// 日期 → YYYY-MM（用于趋势 x 轴按月）
 function toMonth(v) {
   const d = parseDate(v);
   return d ? d.slice(0, 7) : '';
@@ -44,16 +41,16 @@ function findCol(cols, patterns) {
   }
   return null;
 }
+
+// 流量域字段智能识别
 const KEYMAP = {
-  sales: [/销售额/],
-  profit: [/^毛利$/, /毛利(?!率)/],
-  margin: [/毛利率/],
-  qty: [/数量|销量/],
-  order: [/^订单$/, /订单(?!类型|号)/],
-  date: [/日期|时间|下单日期/],
-  shop: [/店铺/],
-  cat: [/品类|类目/],
-  grade: [/销售等级|等级/],
+  sales:   [/销售额/, /GMV/i, /成交金额/, /营收/, /收入/],
+  qty:     [/^销量$/, /销量/, /数量$/, /件数/, /订单数/],
+  order:   [/^订单$/, /订单数/],
+  uv:      [/^平台UV$/i, /平台uv/i, /平台访客/, /总UV$/i, /总uv/i, /^UV$/i, /^访客数$/],
+  shopUv:  [/^店铺UV$/i, /店铺uv/i, /店铺访客/],
+  date:    [/^日期$/, /时间/],
+  shop:    [/^店铺$/, /门店/],
 };
 
 function themeColors() {
@@ -63,26 +60,6 @@ function themeColors() {
     tick: dark ? '#cbd5e1' : '#475569',
     text: dark ? '#e7eaf2' : '#1f2430',
   };
-}
-
-// 找出所有"数值列"（多数行可解析为数字）
-function numColsOf(cols, rows) {
-  return cols.filter((c) => {
-    const sample = rows.slice(0, 30).filter((r) => r[c] != null && r[c] !== '');
-    if (!sample.length) return false;
-    return sample.filter((v) => isNumLike(v)).length / sample.length >= 0.6;
-  });
-}
-
-function aggregate(rows, dimCol, valCol, topN = 10) {
-  const map = {};
-  rows.forEach((r) => {
-    const k = r[dimCol];
-    if (k == null || k === '') return;
-    const v = valCol ? cleanNum(r[valCol]) : 1;
-    map[k] = (map[k] || 0) + v;
-  });
-  return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, topN);
 }
 
 function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
@@ -129,192 +106,298 @@ function drawBar(canvasId, labels, data, title, horizontal = true) {
   });
 }
 
-let last = null; // { rows, km, numCols }
+// 日期运算辅助
+function addDays(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function diffDays(a, b) {
+  return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+}
 
-function renderAll() {
-  if (!last) return;
-  const { rows, km, numCols } = last;
-  const metricSel = document.getElementById('metricSel');
-  const metric = metricSel.value || km.sales || numCols[0];
-  const split = document.getElementById('splitShop').checked;
-  const shopFilter = document.getElementById('shopFilter').value;
+let allRows = [];
+let km = {};
+let currentRows = [];
+let prevRows = [];
 
-  // ---------- KPI ----------
-  const totalSales = km.sales ? rows.reduce((s, r) => s + cleanNum(r[km.sales]), 0) : 0;
-  const totalProfit = km.profit ? rows.reduce((s, r) => s + cleanNum(r[km.profit]), 0) : 0;
-  const totalQty = km.qty ? rows.reduce((s, r) => s + cleanNum(r[km.qty]), 0) : 0;
-  const orderSet = km.order ? new Set(rows.map((r) => r[km.order]).filter((x) => x != null && x !== '')) : null;
-  const orderCount = orderSet ? orderSet.size : rows.length;
-  let avgMargin;
-  if (totalSales > 0 && totalProfit > 0) avgMargin = (totalProfit / totalSales) * 100;
-  else if (km.margin) {
-    const ms = rows.map((r) => cleanNum(r[km.margin])).filter((x) => x > 0);
-    avgMargin = ms.length ? ms.reduce((a, b) => a + b, 0) / ms.length : 0;
-  } else avgMargin = 0;
+function getFieldSum(rows, field) {
+  if (!field) return 0;
+  return rows.reduce((s, r) => s + cleanNum(r[field]), 0);
+}
 
-  const fmtMoney = (n) => '¥' + Math.round(n).toLocaleString();
+function getFieldAvg(rows, field) {
+  if (!field || !rows.length) return 0;
+  return getFieldSum(rows, field) / rows.length;
+}
+
+function getUniqueDays(rows, dateField) {
+  if (!dateField) return 0;
+  return new Set(rows.map((r) => parseDate(r[dateField])).filter(Boolean)).size || rows.length;
+}
+
+function calcChange(cur, prev) {
+  if (!prev) return { pct: 0, sign: 0 };
+  const change = cur - prev;
+  const pct = prev ? (change / Math.abs(prev)) * 100 : 0;
+  return { change, pct, sign: Math.sign(change) };
+}
+
+function fmtMoney(n) {
+  const abs = Math.abs(n);
+  if (abs >= 100000000) return '¥' + (n / 100000000).toFixed(2) + '亿';
+  if (abs >= 10000) return '¥' + (n / 10000).toFixed(2) + '万';
+  return '¥' + Math.round(n).toLocaleString();
+}
+function fmtNum(n) {
+  const abs = Math.abs(n);
+  if (abs >= 100000000) return (n / 100000000).toFixed(2) + '亿';
+  if (abs >= 10000) return (n / 10000).toFixed(2) + '万';
+  return Math.round(n).toLocaleString();
+}
+
+function renderKpis() {
+  const days = getUniqueDays(currentRows, km.date) || 1;
+  const prevDays = getUniqueDays(prevRows, km.date) || 1;
+
+  const curSales = getFieldSum(currentRows, km.sales);
+  const prevSales = getFieldSum(prevRows, km.sales);
+  const curQty = getFieldSum(currentRows, km.qty || km.order);
+  const prevQty = getFieldSum(prevRows, km.qty || km.order);
+  const curAvgSales = curSales / days;
+  const prevAvgSales = prevSales / prevDays;
+  const curUv = getFieldSum(currentRows, km.uv);
+  const prevUv = getFieldSum(prevRows, km.uv);
+  const curAvgUv = curUv / days;
+  const prevAvgUv = prevUv / prevDays;
+  const curShopUv = getFieldSum(currentRows, km.shopUv);
+  const prevShopUv = getFieldSum(prevRows, km.shopUv);
+  const curAvgShopUv = curShopUv / days;
+  const prevAvgShopUv = prevShopUv / prevDays;
+
   const kpis = [
-    { label: '总销售额', val: totalSales ? fmtMoney(totalSales) : '—', sub: km.sales || '—' },
-    { label: '订单数', val: orderCount.toLocaleString(), sub: km.order ? '按订单号去重' : '按行计' },
-    { label: '总毛利', val: totalProfit ? fmtMoney(totalProfit) : '—', sub: km.profit || '—' },
-    { label: '加权毛利率', val: avgMargin.toFixed(1) + '%', sub: '毛利/销售额' },
-    { label: '总销量', val: totalQty ? totalQty.toLocaleString() : '—', sub: km.qty || '—' },
+    { label: '总销售额', cur: curSales, prev: prevSales, fmt: fmtMoney, has: !!km.sales },
+    { label: '总销量', cur: curQty, prev: prevQty, fmt: fmtNum, has: !!(km.qty || km.order) },
+    { label: '日均销售额', cur: curAvgSales, prev: prevAvgSales, fmt: fmtMoney, has: !!km.sales },
+    { label: '日均平台UV', cur: curAvgUv, prev: prevAvgUv, fmt: fmtNum, has: !!km.uv },
+    { label: '日均店铺UV', cur: curAvgShopUv, prev: prevAvgShopUv, fmt: fmtNum, has: !!km.shopUv },
   ];
-  document.getElementById('kpis').innerHTML = kpis.map((k) => `
-    <div class="kpi glass">
-      <div class="kpi-label">${k.label}</div>
-      <div class="kpi-val" style="font-size:24px;font-weight:700">${k.val}</div>
-      <div class="kpi-sub muted">${k.sub || ''}</div>
-    </div>`).join('');
 
-  // ---------- 趋势图 ----------
-  const trendTitle = document.getElementById('trendTitle');
-  if (km.date) {
-    trendTitle.textContent = (metric || '主指标') + ' 趋势';
-    if (split && km.shop && !shopFilter) {
-      // 按店铺分线
-      const shops = [...new Set(rows.map((r) => r[km.shop]).filter((x) => x != null && x !== ''))].slice(0, 8);
-      const months = [...new Set(rows.map((r) => r.__month).filter(Boolean))].sort();
-      const datasets = shops.map((sh, i) => {
-        const series = months.map((m) => {
-          const sub = rows.filter((r) => r[km.shop] === sh && r.__month === m);
-          return Math.round(sub.reduce((s, r) => s + cleanNum(r[metric]), 0));
-        });
-        return { label: sh, data: series, borderColor: PALETTE[i % PALETTE.length], backgroundColor: PALETTE[i % PALETTE.length] + '33', fill: false, tension: .3 };
-      });
-      drawTrend('trendChart', months, datasets, metric);
-    } else {
-      // 单条线
-      const months = [...new Set(rows.map((r) => r.__month).filter(Boolean))].sort();
-      const series = months.map((m) => Math.round(rows.filter((r) => r.__month === m).reduce((s, r) => s + cleanNum(r[metric]), 0)));
-      drawTrend('trendChart', months, [{ label: metric, data: series, borderColor: PALETTE[0], backgroundColor: PALETTE[0] + '33', fill: true, tension: .3 }], metric);
-    }
+  document.getElementById('kpis').innerHTML = kpis.map((k) => {
+    if (!k.has) return '';
+    const ch = calcChange(k.cur, k.prev);
+    const arrow = ch.sign > 0 ? '↑' : ch.sign < 0 ? '↓' : '—';
+    const colorClass = ch.sign > 0 ? 'up' : ch.sign < 0 ? 'down' : 'flat';
+    const pctText = Math.abs(ch.pct).toFixed(1) + '%';
+    return `
+      <div class="kpi glass ${colorClass}">
+        <div class="kpi-label">${k.label}</div>
+        <div class="kpi-val">${k.fmt(k.cur)}</div>
+        <div class="kpi-change"><span class="arrow">${arrow}</span> ${pctText} vs 上期</div>
+      </div>`;
+  }).join('');
+}
+
+function seriesByDate(rows, dateField, valField, fillDates) {
+  if (!dateField || !valField) return { labels: [], data: [] };
+  const map = {};
+  fillDates.forEach((d) => map[d] = 0);
+  rows.forEach((r) => {
+    const d = parseDate(r[dateField]);
+    if (!d || !map.hasOwnProperty(d)) return;
+    map[d] += cleanNum(r[valField]);
+  });
+  return { labels: fillDates, data: fillDates.map((d) => Math.round(map[d] || 0)) };
+}
+
+function dateRange(start, end) {
+  const res = [];
+  let cur = start;
+  while (cur <= end) {
+    res.push(cur);
+    cur = addDays(cur, 1);
+  }
+  return res;
+}
+
+function renderTrends() {
+  const sd = document.getElementById('startDate').value;
+  const ed = document.getElementById('endDate').value;
+  const dates = (sd && ed) ? dateRange(sd, ed) : [];
+
+  // 销售额趋势
+  if (km.sales && dates.length) {
+    const cur = seriesByDate(currentRows, km.date, km.sales, dates);
+    const prev = seriesByDate(prevRows, km.date, km.sales, dates);
+    drawTrend('trendSales', cur.labels, [
+      { label: '本期', data: cur.data, borderColor: PALETTE[0], backgroundColor: PALETTE[0] + '22', fill: true, tension: .3 },
+      { label: '上期', data: prev.data, borderColor: '#94a3b8', backgroundColor: 'transparent', fill: false, tension: .3, borderDash: [5, 5] },
+    ], '销售额');
   } else {
-    document.getElementById('trendChart').parentElement.style.display = 'none';
-    trendTitle.textContent = '无日期列，无法出趋势';
+    destroyChart('trendSales');
   }
 
-  // ---------- 维度对比（店铺 Top / 品类 Top） ----------
-  const dimTitle = document.getElementById('dimTitle');
-  let dimCol = null;
-  if (km.shop) dimCol = km.shop; else if (km.cat) dimCol = km.cat;
-  if (dimCol) {
-    dimTitle.textContent = (dimCol) + ' Top';
-    const d = aggregate(rows, dimCol, metric, 8);
-    drawBar('dimChart', d.map((x) => x[0]), d.map((x) => Math.round(x[1])), metric);
+  // UV 趋势
+  if (km.uv && dates.length) {
+    const cur = seriesByDate(currentRows, km.date, km.uv, dates);
+    const prev = seriesByDate(prevRows, km.date, km.uv, dates);
+    drawTrend('trendUv', cur.labels, [
+      { label: '本期', data: cur.data, borderColor: PALETTE[3], backgroundColor: PALETTE[3] + '22', fill: true, tension: .3 },
+      { label: '上期', data: prev.data, borderColor: '#94a3b8', backgroundColor: 'transparent', fill: false, tension: .3, borderDash: [5, 5] },
+    ], 'UV');
   } else {
-    document.getElementById('dimChart').parentElement.style.display = 'none';
+    destroyChart('trendUv');
   }
 
-  // ---------- 多指标叠加 ----------
-  const multiCols = [km.sales, km.profit, km.qty].filter(Boolean).filter((c) => numCols.includes(c));
-  if (km.date && multiCols.length >= 2) {
-    const months = [...new Set(rows.map((r) => r.__month).filter(Boolean))].sort();
-    const datasets = multiCols.map((c, i) => ({
-      label: c,
-      data: months.map((m) => Math.round(rows.filter((r) => r.__month === m).reduce((s, r) => s + cleanNum(r[c]), 0))),
-      borderColor: PALETTE[i % PALETTE.length], backgroundColor: PALETTE[i % PALETTE.length] + '22', fill: false, tension: .3,
-    }));
-    drawTrend('multiChart', months, datasets, '数值');
+  // 销量趋势
+  if ((km.qty || km.order) && dates.length) {
+    const field = km.qty || km.order;
+    const cur = seriesByDate(currentRows, km.date, field, dates);
+    const prev = seriesByDate(prevRows, km.date, field, dates);
+    drawTrend('trendQty', cur.labels, [
+      { label: '本期', data: cur.data, borderColor: PALETTE[4], backgroundColor: PALETTE[4] + '22', fill: true, tension: .3 },
+      { label: '上期', data: prev.data, borderColor: '#94a3b8', backgroundColor: 'transparent', fill: false, tension: .3, borderDash: [5, 5] },
+    ], '销量');
   } else {
-    document.getElementById('multiChart').parentElement.style.display = 'none';
+    destroyChart('trendQty');
   }
+}
 
-  // ---------- 明细表 ----------
-  const cols = Object.keys(rows[0] || {}).filter((c) => c !== '__fileTag' && c !== '__month');
+function renderShopCompare() {
+  if (!km.shop) { destroyChart('shopChart'); return; }
+  const dim = km.shop;
+  const metric = km.sales || km.uv || km.qty || km.order;
+  if (!metric) { destroyChart('shopChart'); return; }
+  const map = {};
+  currentRows.forEach((r) => {
+    const k = r[dim];
+    if (k == null || k === '') return;
+    map[k] = (map[k] || 0) + cleanNum(r[metric]);
+  });
+  const arr = Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  drawBar('shopChart', arr.map((x) => x[0]), arr.map((x) => Math.round(x[1])), metric);
+}
+
+function renderTable() {
+  const cols = Object.keys(currentRows[0] || {}).filter((c) => c !== '__fileTag' && c !== '__month' && c !== '__date');
   const showCols = cols.slice(0, 12);
   const head = '<tr>' + showCols.map((c) => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
-  const body = rows.slice(0, 100).map((r) => '<tr>' + showCols.map((c) => `<td>${r[c] == null ? '' : escapeHtml(r[c])}</td>`).join('') + '</tr>').join('');
+  const body = currentRows.slice(0, 100).map((r) => '<tr>' + showCols.map((c) => `<td>${r[c] == null ? '' : escapeHtml(r[c])}</td>`).join('') + '</tr>').join('');
   document.getElementById('tableWrap').innerHTML = `<table class="tbl"><thead>${head}</thead><tbody>${body}</tbody></table>`;
 }
 
+function renderAll() {
+  renderKpis();
+  renderTrends();
+  renderShopCompare();
+  renderTable();
+}
+
+function applyDateRangeFilter(rows) {
+  const sd = document.getElementById('startDate').value;
+  const ed = document.getElementById('endDate').value;
+  if (!km.date || (!sd && !ed)) return rows;
+  return rows.filter((r) => {
+    const d = parseDate(r[km.date]);
+    if (!d) return false;
+    if (sd && d < sd) return false;
+    if (ed && d > ed) return false;
+    return true;
+  });
+}
+
+function applyShopFilter(rows) {
+  const shop = document.getElementById('shopFilter').value;
+  if (!km.shop || !shop) return rows;
+  return rows.filter((r) => String(r[km.shop]) === shop);
+}
+
+function computePrevRange(sd, ed, mode) {
+  if (!sd || !ed) return { sd: null, ed: null };
+  const len = diffDays(sd, ed);
+  if (mode === 'yoy') {
+    // 同比：去年同一天，长度相同
+    const prevSd = (parseInt(sd.slice(0, 4)) - 1) + sd.slice(4);
+    const prevEd = (parseInt(ed.slice(0, 4)) - 1) + ed.slice(4);
+    return { sd: prevSd, ed: prevEd };
+  }
+  // 环比：往前推同样长度
+  const prevEd = addDays(sd, -1);
+  const prevSd = addDays(prevEd, -len);
+  return { sd: prevSd, ed: prevEd };
+}
+
+function filterByRange(rows, sd, ed) {
+  if (!km.date || (!sd && !ed)) return rows;
+  return rows.filter((r) => {
+    const d = parseDate(r[km.date]);
+    if (!d) return false;
+    if (sd && d < sd) return false;
+    if (ed && d > ed) return false;
+    return true;
+  });
+}
+
 async function load() {
-  const domain = document.getElementById('domain').value;
   document.getElementById('loadBtn').textContent = '查询中…';
   document.getElementById('loadBtn').disabled = true;
   try {
-    const data = await DB.readDomain(domain);
+    const data = await DB.readDomain('traffic');
     if (!data || !data.rows || !data.rows.length) {
       document.getElementById('board').style.display = 'none';
       document.getElementById('empty').style.display = 'block';
-      document.getElementById('empty').querySelector('p').textContent = '该域还没有数据，去上传一份吧。';
       return;
     }
 
-    const allRows = data.rows;
-    let rows = allRows;
-    // 数据源批次筛选
-    const ft = document.getElementById('fileTagFilter').value;
-    if (ft) rows = rows.filter((r) => r.__fileTag === ft);
-
-    const cols = Object.keys(rows[0] || allRows[0] || {}).filter((c) => c !== '__fileTag');
-    const km = {};
+    allRows = data.rows;
+    const cols = Object.keys(allRows[0] || {}).filter((c) => c !== '__fileTag');
+    km = {};
     for (const k in KEYMAP) km[k] = findCol(cols, KEYMAP[k]);
 
-    // 解析月份 + 日期
-    if (km.date) rows.forEach((r) => { r.__month = toMonth(r[km.date]); r.__date = parseDate(r[km.date]); });
-
-    // 日期范围筛选
-    const sd = document.getElementById('startDate').value;
-    const ed = document.getElementById('endDate').value;
-    if (km.date && (sd || ed)) {
-      rows = rows.filter((r) => {
-        if (!r.__date) return false;
-        if (sd && r.__date < sd) return false;
-        if (ed && r.__date > ed) return false;
-        return true;
-      });
-    }
-    // 店铺筛选
-    const shop = document.getElementById('shopFilter').value;
-    if (km.shop && shop) rows = rows.filter((r) => r[km.shop] === shop);
-
-    if (!rows.length) {
-      document.getElementById('board').style.display = 'none';
-      document.getElementById('empty').style.display = 'block';
-      document.getElementById('empty').querySelector('p').textContent = '当前筛选条件下没有数据，调整一下筛选再试。';
-      return;
-    }
-
-    const numCols = numColsOf(cols, rows);
-    last = { rows, km, numCols };
-
-    // 填充店铺下拉（基于全量数据，不受当前批次筛选影响，避免"数据不全"的错觉）
+    // 填充店铺下拉（全量）
     const shopSel = document.getElementById('shopFilter');
     const curShop = shopSel.value;
     if (km.shop) {
       const shops = [...new Set(allRows.map((r) => r[km.shop]).filter((x) => x != null && x !== ''))].sort();
-      const selectedCount = rows.filter((r) => r[km.shop] && r[km.shop].toString().trim()).length;
-      const allCount = allRows.length;
       shopSel.innerHTML = `<option value="">全部店铺（${shops.length}个）</option>` + shops.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-      // 如果当前筛选后没有任何数据，且选中了某个不存在的店铺，自动切回全部
-      if (selectedCount === 0 && curShop && !shops.includes(curShop)) {
-        shopSel.value = '';
-      }
+      if (shops.includes(curShop)) shopSel.value = curShop;
     } else {
       shopSel.innerHTML = '<option value="">（无店铺列）</option>';
     }
-    if ([...shopSel.options].some((o) => o.value === curShop)) shopSel.value = curShop;
 
-    // 填充数据源批次
-    const ftSel = document.getElementById('fileTagFilter');
-    const curFt = ftSel.value;
-    ftSel.innerHTML = '<option value="">全部</option>' + (data.files || []).map((f) => `<option value="${escapeHtml(f.fileTag)}">${escapeHtml(f.fileTag)}（${f.count}）</option>`).join('');
-    if ([...ftSel.options].some((o) => o.value === curFt)) ftSel.value = curFt;
+    // 默认日期范围：有数据的最大连续/最近区间
+    const sdInput = document.getElementById('startDate');
+    const edInput = document.getElementById('endDate');
+    if (km.date && (!sdInput.value || !edInput.value)) {
+      const dates = allRows.map((r) => parseDate(r[km.date])).filter(Boolean).sort();
+      if (dates.length) {
+        edInput.value = dates[dates.length - 1];
+        sdInput.value = dates[0];
+      }
+    }
 
-    // 填充主指标下拉（数值列）
-    const metricSel = document.getElementById('metricSel');
-    const curMetric = metricSel.value;
-    const defaultMetric = km.sales || numCols[0] || '';
-    metricSel.innerHTML = numCols.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-    if (curMetric && numCols.includes(curMetric)) metricSel.value = curMetric;
-    else metricSel.value = defaultMetric;
+    const mode = document.getElementById('compareMode').value || 'mom';
+    const sd = sdInput.value;
+    const ed = edInput.value;
+    const prev = computePrevRange(sd, ed, mode);
+
+    // 先按店铺筛选（当前和上期都应用相同店铺条件）
+    const shopFiltered = applyShopFilter(allRows);
+    currentRows = filterByRange(shopFiltered, sd, ed);
+    prevRows = filterByRange(shopFiltered, prev.sd, prev.ed);
+
+    if (!currentRows.length) {
+      document.getElementById('board').style.display = 'none';
+      document.getElementById('empty').style.display = 'block';
+      document.getElementById('empty').querySelector('p').textContent = '当前筛选条件下没有数据，调整一下日期或店铺再试。';
+      return;
+    }
 
     document.getElementById('empty').style.display = 'none';
     document.getElementById('board').style.display = 'block';
     renderAll();
 
-    document.getElementById('updated').textContent = '更新于 ' + new Date(data.updatedAt || Date.now()).toLocaleString() + '（云端数据库）';
+    document.getElementById('updated').textContent = '更新于 ' + new Date(data.updatedAt || Date.now()).toLocaleString() + '（云端数据库 · 流量域）';
   } catch (e) {
     document.getElementById('board').style.display = 'none';
     document.getElementById('empty').style.display = 'block';
@@ -325,7 +408,40 @@ async function load() {
   }
 }
 
-window.__refreshChart = function () { if (last) renderAll(); };
+// 导出当前数据
+function toCsv(rows) {
+  if (!rows.length) return '';
+  const cols = Object.keys(rows[0]).filter((c) => !c.startsWith('__'));
+  const head = cols.join(',');
+  const body = rows.map((r) => cols.map((c) => {
+    const v = r[c] == null ? '' : String(r[c]).replace(/"/g, '""');
+    return v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v}"` : v;
+  }).join(','));
+  return [head, ...body].join('\n');
+}
+
+function download(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportCsv() {
+  if (!currentRows.length) return alert('没有可导出的数据');
+  download('流量大盘.csv', '\uFEFF' + toCsv(currentRows), 'text/csv;charset=utf-8;');
+}
+function exportExcel() {
+  if (!currentRows.length) return alert('没有可导出的数据');
+  const html = `<table>${toCsv(currentRows).split('\n').map((row, i) => `<tr>${row.split(',').map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</table>`;
+  download('流量大盘.xls', '\uFEFF' + html, 'application/vnd.ms-excel;charset=utf-8;');
+}
+
+window.__refreshChart = function () {
+  Object.values(charts).forEach((c) => c && c.update());
+};
 
 // 侧边栏 section 切换
 const SEC_META = {
@@ -337,7 +453,7 @@ const SEC_META = {
 document.querySelectorAll('.side-nav a').forEach((a) => {
   a.addEventListener('click', () => {
     const sec = a.getAttribute('data-sec');
-    if (!SEC_META[sec]) return; // 交给外层统一外壳处理（上传/我的数据等）
+    if (!SEC_META[sec]) return;
     document.querySelectorAll('.side-nav a').forEach((x) => x.classList.remove('active'));
     a.classList.add('active');
     document.querySelectorAll('.section').forEach((s) => s.classList.remove('active'));
@@ -347,11 +463,11 @@ document.querySelectorAll('.side-nav a').forEach((a) => {
   });
 });
 
-['loadBtn', 'domain', 'fileTagFilter', 'startDate', 'endDate', 'shopFilter', 'metricSel', 'splitShop']
-  .forEach((id) => document.getElementById(id).addEventListener('change', () => {
-    if (id === 'metricSel' || id === 'splitShop' || id === 'shopFilter') { if (last) renderAll(); }
-    else load();
-  }));
 document.getElementById('loadBtn').addEventListener('click', load);
+document.getElementById('exportCsv').addEventListener('click', exportCsv);
+document.getElementById('exportExcel').addEventListener('click', exportExcel);
+['startDate', 'endDate', 'shopFilter', 'compareMode'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', () => { if (allRows.length) load(); });
+});
 
 load();
