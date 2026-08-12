@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>上传数据 · 团队看板</title>
-  <link rel="stylesheet" href="css/style.css?v=7" />
+  <link rel="stylesheet" href="css/style.css?v=8" />
 </head>
 <body>
   <script>if(/[?&]embed=1/.test(location.search))document.body.classList.add('embed');</script>
@@ -44,8 +44,8 @@
           <input type="text" id="fileTag" name="fileTag" placeholder="如：7月订单_第一批" />
         </div>
         <div class="fitem" id="keyWrap" style="margin-bottom:16px;display:none">
-          <label>唯一键列（按哪些列识别一条记录，增量合并用）<span class="muted" style="font-weight:normal;font-size:12px">可多选；不选则用第一列</span></label>
-          <div id="keyChecks" class="key-checks"></div>
+          <label>唯一键（系统自动识别，无需选择）<span class="muted" style="font-weight:normal;font-size:12px">用于增量合并：同键覆盖、不同键追加</span></label>
+          <div id="keyPreview" class="key-preview"></div>
           <div class="auto" id="keyAutoHint" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
         </div>
         <div class="fitem" style="margin-bottom:20px">
@@ -66,6 +66,6 @@
   <script src="js/app.js?v=6"></script>
   <script src="js/config.js?v=4"></script>
   <script src="js/supabase-api.js?v=5"></script>
-  <script src="js/upload2.js?v=7"></script>
+  <script src="js/upload2.js?v=8"></script>
 </body>
 </html>
