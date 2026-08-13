@@ -144,15 +144,11 @@ function calcChange(cur, prev) {
 }
 
 function fmtMoney(n) {
-  const abs = Math.abs(n);
-  if (abs >= 100000000) return '¥' + (n / 100000000).toFixed(2) + '亿';
-  if (abs >= 10000) return '¥' + (n / 10000).toFixed(2) + '万';
+  // 始终显示原始具体数字（千分位），不做万/亿估算，保证百分比基于精确值计算
   return '¥' + Math.round(n).toLocaleString();
 }
 function fmtNum(n) {
-  const abs = Math.abs(n);
-  if (abs >= 100000000) return (n / 100000000).toFixed(2) + '亿';
-  if (abs >= 10000) return (n / 10000).toFixed(2) + '万';
+  // 始终显示原始具体数字（千分位），不做万/亿估算
   return Math.round(n).toLocaleString();
 }
 
@@ -309,10 +305,9 @@ function renderShopFilter(shops, selected) {
   const selectedSet = new Set(selected);
   optsWrap.innerHTML = shops.map((s) => {
     const checked = selectedSet.has(s) ? 'checked' : '';
-    return `<label class="multi-select-option"><input type="checkbox" value="${escapeHtml(s)}" ${checked}> ${escapeHtml(s)}</label>`;
+    return `<label class="multi-select-option" title="${escapeHtml(s)}"><input type="checkbox" value="${escapeHtml(s)}" ${checked}><span>${escapeHtml(s)}</span></label>`;
   }).join('');
-  const count = selectedSet.size;
-  toggle.textContent = count === 0 ? '未选择店铺' : count === shops.length ? `全部店铺（${shops.length}个）` : `已选 ${count} 个店铺`;
+  toggle.textContent = formatShopToggleText(shops, selectedSet);
 }
 
 function initShopFilter() {
@@ -357,8 +352,22 @@ function updateShopFilterToggle() {
   const toggle = wrap.querySelector('.multi-select-toggle');
   const boxes = wrap.querySelectorAll('.multi-select-options input[type="checkbox"]');
   const total = boxes.length;
-  const checked = wrap.querySelectorAll('.multi-select-options input[type="checkbox"]:checked').length;
-  toggle.textContent = checked === 0 ? '未选择店铺' : checked === total ? `全部店铺（${total}个）` : `已选 ${checked} 个店铺`;
+  const checkedBoxes = wrap.querySelectorAll('.multi-select-options input[type="checkbox"]:checked');
+  const checked = checkedBoxes.length;
+  const selected = Array.from(checkedBoxes).map((b) => b.value);
+  const allShops = Array.from(boxes).map((b) => b.value);
+  toggle.textContent = formatShopToggleText(allShops, selected);
+}
+
+function formatShopToggleText(allShops, selected) {
+  const total = allShops.length;
+  const checked = selected.length;
+  if (checked === 0 || total === 0) return '未选择店铺';
+  if (checked === total) return `全部店铺（${total}个）`;
+  if (checked === 1) return selected[0];
+  // 2-3 个直接列出；超过 3 个显示前两个 + 等 N 个
+  if (checked <= 3) return selected.join('、');
+  return `${selected[0]}、${selected[1]} 等 ${checked} 个`;
 }
 
 function computePrevRange(sd, ed, mode) {
