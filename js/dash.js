@@ -189,6 +189,7 @@ function renderKpis() {
     if (!k.has) return '';
     const ch = calcChange(k.cur, k.prev);
     const colorClass = ch.sign > 0 ? 'up' : ch.sign < 0 ? 'down' : 'flat';
+    const arrow = ch.sign > 0 ? '↑' : ch.sign < 0 ? '↓' : '—';
     const pctText = Math.abs(ch.pct).toFixed(1) + '%';
     return `
       <div class="kpi glass ${colorClass}">
@@ -196,7 +197,7 @@ function renderKpis() {
         <div class="kpi-val">${k.fmt(k.cur)}</div>
         <div class="kpi-meta">
           <span class="kpi-prev">上期 ${k.fmt(k.prev)}</span>
-          <span class="kpi-change tag ${colorClass}">${pctText} ${modeLabel}</span>
+          <span class="kpi-change tag ${colorClass}">${arrow} ${pctText} ${modeLabel}</span>
         </div>
       </div>`;
   }).join('');
@@ -252,34 +253,6 @@ function renderTrends() {
   } else {
     destroyChart('trendUv');
   }
-
-  // 销量趋势
-  if ((km.qty || km.order) && dates.length) {
-    const field = km.qty || km.order;
-    const cur = seriesByDate(currentRows, km.date, field, dates);
-    const prev = seriesByDate(prevRows, km.date, field, dates);
-    drawTrend('trendQty', cur.labels, [
-      { label: '本期', data: cur.data, borderColor: PALETTE[4], backgroundColor: PALETTE[4] + '22', fill: true, tension: .3 },
-      { label: '上期', data: prev.data, borderColor: '#94a3b8', backgroundColor: 'transparent', fill: false, tension: .3, borderDash: [5, 5] },
-    ], '销量');
-  } else {
-    destroyChart('trendQty');
-  }
-}
-
-function renderShopCompare() {
-  if (!km.shop) { destroyChart('shopChart'); return; }
-  const dim = km.shop;
-  const metric = km.sales || km.uv || km.qty || km.order;
-  if (!metric) { destroyChart('shopChart'); return; }
-  const map = {};
-  currentRows.forEach((r) => {
-    const k = r[dim];
-    if (k == null || k === '') return;
-    map[k] = (map[k] || 0) + cleanNum(r[metric]);
-  });
-  const arr = Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  drawBar('shopChart', arr.map((x) => x[0]), arr.map((x) => Math.round(x[1])), metric);
 }
 
 function renderTable() {
@@ -292,8 +265,6 @@ function renderTable() {
 
 function renderAll() {
   renderKpis();
-  renderTrends();
-  renderShopCompare();
   renderTable();
 }
 
