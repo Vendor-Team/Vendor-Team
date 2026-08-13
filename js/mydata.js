@@ -49,12 +49,16 @@ const KEYMAP = {
   grade: [/销售等级|等级/],
 };
 
-function setEmpty(msg) {
+function setLoading(msg) {
   document.getElementById('board').style.display = 'none';
   document.getElementById('empty').style.display = 'block';
-  document.getElementById('empty').querySelector('p').textContent = msg;
+  document.getElementById('empty').querySelector('p').innerHTML = msg;
   document.getElementById('updated').textContent = '';
   document.getElementById('fileList').style.display = 'none';
+}
+
+function setEmpty(msg) {
+  setLoading(msg);
 }
 
 function themeColors() {
@@ -117,7 +121,7 @@ function aggregate(rows, dimCol, valCol, topN = 10) {
   return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, topN);
 }
 
-let lastRows = null, lastKm = null;
+let lastRows = null, lastKm = null, lastFiles = null;
 
 function renderCharts(rows, km) {
   // 先把 4 个图表容器都恢复显示，再按需隐藏
@@ -153,107 +157,77 @@ window.__refreshChart = function () {
   if (lastRows && lastKm) renderCharts(lastRows, lastKm);
 };
 
-async function load() {
-  const domain = document.getElementById('domain').value;
-  const ftFilter = document.getElementById('fileTagFilter').value;
-  const moFilter = document.getElementById('monthFilter').value;
-  document.getElementById('loadBtn').textContent = '读取中…';
-  document.getElementById('loadBtn').disabled = true;
-  try {
-    const data = await DB.readDomain(domain);
-    if (!data || !data.rows || !data.rows.length) {
-      setEmpty('该域还没有数据，去上传一份吧。');
-      return;
-    }
-    let rows = data.rows;
-    // 筛选：数据源批次
-    if (ftFilter) rows = rows.filter((r) => r.__fileTag === ftFilter);
-
-    const cols = Object.keys(rows[0] || {}).filter((c) => c !== '__fileTag');
-    const km = {};
-    for (const k in KEYMAP) km[k] = findCol(cols, KEYMAP[k]);
-
-    // 解析月份（用于月份筛选 + 图表）
-    if (km.date) rows.forEach((r) => { r.__month = toMonth(r[km.date]); });
-    if (moFilter) rows = rows.filter((r) => r.__month === moFilter);
-    if (!rows.length) {
-      setEmpty('在当前筛选条件下没有数据，换个筛选试试。');
-      return;
-    }
-
-    document.getElementById('empty').style.display = 'none';
-    document.getElementById('board').style.display = 'block';
-
-    // ---------- KPI ----------
-    const totalSales = km.sales ? rows.reduce((s, r) => s + cleanNum(r[km.sales]), 0) : 0;
-    const totalProfit = km.profit ? rows.reduce((s, r) => s + cleanNum(r[km.profit]), 0) : 0;
-    const totalQty = km.qty ? rows.reduce((s, r) => s + cleanNum(r[km.qty]), 0) : 0;
-    const orderSet = km.order ? new Set(rows.map((r) => r[km.order]).filter((x) => x != null && x !== '')) : null;
-    const orderCount = orderSet ? orderSet.size : rows.length;
-    // 加权毛利率：总毛利 / 总销售额；否则取毛利率列均值
-    let avgMargin;
-    if (totalSales > 0 && totalProfit > 0) avgMargin = (totalProfit / totalSales) * 100;
-    else if (km.margin) {
-      const ms = rows.map((r) => cleanNum(r[km.margin])).filter((x) => x > 0);
-      avgMargin = ms.length ? ms.reduce((a, b) => a + b, 0) / ms.length : 0;
-    } else avgMargin = 0;
-
-    const fmtMoney = (n) => '¥' + Math.round(n).toLocaleString();
-    const kpis = [
-      { label: '总销售额', val: fmtMoney(totalSales), sub: km.sales || '—' },
-      { label: '订单数', val: orderCount.toLocaleString(), sub: km.order ? '按订单号去重' : '按行计' },
-      { label: '总毛利', val: fmtMoney(totalProfit), sub: km.profit || '—' },
-      { label: '加权毛利率', val: avgMargin.toFixed(1) + '%', sub: '毛利/销售额' },
-      { label: '总销量', val: totalQty.toLocaleString(), sub: km.qty || '—' },
-    ];
-    document.getElementById('kpis').innerHTML = kpis.map((k) => `
-      <div class="kpi glass">
-        <div class="kpi-label">${k.label}</div>
-        <div class="kpi-val" style="font-size:24px;font-weight:700">${k.val}</div>
-        <div class="kpi-sub muted">${k.sub || ''}</div>
-      </div>`).join('');
-
-    // ---------- 图表 ----------
-    renderCharts(rows, km);
-    lastRows = rows; lastKm = km;
-
-    // ---------- 明细表（前 50 行，去掉内部字段） ----------
-    const showCols = cols.slice(0, 12);
-    const head = '<tr>' + showCols.map((c) => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
-    const body = rows.slice(0, 50).map((r) => '<tr>' + showCols.map((c) => `<td>${r[c] == null ? '' : escapeHtml(r[c])}</td>`).join('') + '</tr>').join('');
-    document.getElementById('tableWrap').innerHTML = `<table class="tbl"><thead>${head}</thead><tbody>${body}</tbody></table>`;
-
-    // ---------- 文件列表（可单独删除） ----------
-    renderFileList(domain, data.files);
-
-    // ---------- 填充筛选器 ----------
-    fillFilters(data.files, rows, km);
-
-    document.getElementById('updated').textContent =
-      '更新于 ' + new Date(data.updatedAt || Date.now()).toLocaleString() + '（云端数据库）';
-  } catch (e) {
-    setEmpty('读取失败：' + e.message);
-  } finally {
-    document.getElementById('loadBtn').textContent = '读取数据';
-    document.getElementById('loadBtn').disabled = false;
-  }
+function buildKeymap(rows) {
+  const cols = Object.keys(rows[0] || {}).filter((c) => c !== '__fileTag');
+  const km = {};
+  for (const k in KEYMAP) km[k] = findCol(cols, KEYMAP[k]);
+  return { cols, km };
 }
 
-function fillFilters(files, rows, km) {
+function renderBoard(rows, km, updatedAt) {
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('board').style.display = 'block';
+
+  // ---------- KPI ----------
+  const totalSales = km.sales ? rows.reduce((s, r) => s + cleanNum(r[km.sales]), 0) : 0;
+  const totalProfit = km.profit ? rows.reduce((s, r) => s + cleanNum(r[km.profit]), 0) : 0;
+  const totalQty = km.qty ? rows.reduce((s, r) => s + cleanNum(r[km.qty]), 0) : 0;
+  const orderSet = km.order ? new Set(rows.map((r) => r[km.order]).filter((x) => x != null && x !== '')) : null;
+  const orderCount = orderSet ? orderSet.size : rows.length;
+  // 加权毛利率：总毛利 / 总销售额；否则取毛利率列均值
+  let avgMargin;
+  if (totalSales > 0 && totalProfit > 0) avgMargin = (totalProfit / totalSales) * 100;
+  else if (km.margin) {
+    const ms = rows.map((r) => cleanNum(r[km.margin])).filter((x) => x > 0);
+    avgMargin = ms.length ? ms.reduce((a, b) => a + b, 0) / ms.length : 0;
+  } else avgMargin = 0;
+
+  const fmtMoney = (n) => '¥' + Math.round(n).toLocaleString();
+  const kpis = [
+    { label: '总销售额', val: fmtMoney(totalSales), sub: km.sales || '—' },
+    { label: '订单数', val: orderCount.toLocaleString(), sub: km.order ? '按订单号去重' : '按行计' },
+    { label: '总毛利', val: fmtMoney(totalProfit), sub: km.profit || '—' },
+    { label: '加权毛利率', val: avgMargin.toFixed(1) + '%', sub: '毛利/销售额' },
+    { label: '总销量', val: totalQty.toLocaleString(), sub: km.qty || '—' },
+  ];
+  document.getElementById('kpis').innerHTML = kpis.map((k) => `
+    <div class="kpi glass">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-val" style="font-size:24px;font-weight:700">${k.val}</div>
+      <div class="kpi-sub muted">${k.sub || ''}</div>
+    </div>`).join('');
+
+  // ---------- 图表 ----------
+  renderCharts(rows, km);
+  lastRows = rows; lastKm = km;
+
+  // ---------- 明细表（前 50 行，去掉内部字段） ----------
+  const { cols } = buildKeymap(rows);
+  const showCols = cols.slice(0, 12);
+  const head = '<tr>' + showCols.map((c) => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+  const body = rows.slice(0, 50).map((r) => '<tr>' + showCols.map((c) => `<td>${r[c] == null ? '' : escapeHtml(r[c])}</td>`).join('') + '</tr>').join('');
+  document.getElementById('tableWrap').innerHTML = `<table class="tbl"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+
+  // ---------- 更新提示 ----------
+  document.getElementById('updated').textContent =
+    '更新于 ' + new Date(updatedAt || Date.now()).toLocaleString() + '（云端数据库）';
+}
+
+function fillFileTagFilter(files, selected) {
   const ftSel = document.getElementById('fileTagFilter');
-  const curFt = ftSel.value;
   ftSel.innerHTML = '<option value="">全部</option>' +
     (files || []).map((f) => `<option value="${escapeHtml(f.fileTag)}">${escapeHtml(f.fileTag)}（${f.count}）</option>`).join('');
-  if ([...ftSel.options].some((o) => o.value === curFt)) ftSel.value = curFt;
+  if (selected && [...ftSel.options].some((o) => o.value === selected)) ftSel.value = selected;
+}
 
+function fillMonthFilter(rows, km, selected) {
   const moSel = document.getElementById('monthFilter');
-  const curMo = moSel.value;
   const months = [];
   if (km.date) rows.forEach((r) => { if (r.__month && !months.includes(r.__month)) months.push(r.__month); });
   months.sort();
   moSel.innerHTML = '<option value="">全部</option>' +
     months.map((m) => `<option value="${m}">${m}</option>`).join('');
-  if ([...moSel.options].some((o) => o.value === curMo)) moSel.value = curMo;
+  if (selected && [...moSel.options].some((o) => o.value === selected)) moSel.value = selected;
 }
 
 function renderFileList(domain, files) {
@@ -275,14 +249,105 @@ async function deleteFile(domain, fileTag) {
   if (!confirm(`确定要删除文件「${fileTag}」这份数据吗？\n只删这一份，同域其他文件不受影响。删除后无法恢复。`)) return;
   try {
     await DB.deleteFile(domain, fileTag);
-    await load();
+    await init();
   } catch (e) {
     alert('删除失败：' + e.message);
   }
 }
 
-document.getElementById('loadBtn').addEventListener('click', load);
-document.getElementById('domain').addEventListener('change', load);
-document.getElementById('fileTagFilter').addEventListener('change', load);
+async function load() {
+  const domain = document.getElementById('domain').value;
+  const ftSel = document.getElementById('fileTagFilter');
+  const moSel = document.getElementById('monthFilter');
+  const ftFilter = ftSel.value;
+  const moFilter = moSel.value;
+  const loadBtn = document.getElementById('loadBtn');
+
+  loadBtn.textContent = '读取中…';
+  loadBtn.disabled = true;
+
+  try {
+    // 先列出所有批次，确保下拉始终可用
+    if (!lastFiles) lastFiles = await DB.listFileTags(domain);
+    fillFileTagFilter(lastFiles, ftFilter);
+    renderFileList(domain, lastFiles);
+
+    if (!lastFiles.length) {
+      setEmpty('该域还没有数据，去上传一份吧。');
+      return;
+    }
+
+    // 默认选中最新批次（仅在用户未主动选择时）
+    if (!ftFilter && !ftSel.dataset.userPicked) {
+      const latest = lastFiles[0].fileTag;
+      ftSel.value = latest;
+      ftSel.dataset.autoSelected = '1';
+    }
+
+    const readOptions = {};
+    if (ftSel.value) {
+      readOptions.fileTag = ftSel.value;
+    } else {
+      // 全量读取：显示实时进度
+      readOptions.onProgress = (n) => {
+        setLoading(`正在从云端读取 <b>${n.toLocaleString()}</b> 行数据，请稍候…`);
+      };
+    }
+
+    const data = await DB.readDomain(domain, readOptions);
+    if (!data || !data.rows || !data.rows.length) {
+      setEmpty(ftSel.value ? '该批次没有数据，换个批次试试。' : '该域还没有数据，去上传一份吧。');
+      return;
+    }
+
+    let rows = data.rows;
+    const { cols, km } = buildKeymap(rows);
+    if (km.date) rows.forEach((r) => { r.__month = toMonth(r[km.date]); });
+
+    // 月份筛选
+    fillMonthFilter(rows, km, moFilter);
+    if (moFilter) {
+      rows = rows.filter((r) => r.__month === moFilter);
+      if (!rows.length) {
+        setEmpty('在当前月份筛选下没有数据，换个月份试试。');
+        return;
+      }
+    }
+
+    renderBoard(rows, km, data.updatedAt);
+  } catch (e) {
+    setEmpty('读取失败：' + e.message);
+  } finally {
+    loadBtn.textContent = '读取数据';
+    loadBtn.disabled = false;
+  }
+}
+
+async function init() {
+  const domain = document.getElementById('domain').value;
+  lastFiles = null;
+  try {
+    lastFiles = await DB.listFileTags(domain);
+    fillFileTagFilter(lastFiles, '');
+    renderFileList(domain, lastFiles);
+  } catch (e) {
+    setEmpty('读取文件列表失败：' + e.message);
+    return;
+  }
+  await load();
+}
+
+// 事件监听：用户主动切换批次时标记，不再自动覆盖
+document.getElementById('fileTagFilter').addEventListener('change', () => {
+  document.getElementById('fileTagFilter').dataset.userPicked = '1';
+  load();
+});
 document.getElementById('monthFilter').addEventListener('change', load);
-load();
+document.getElementById('domain').addEventListener('change', () => {
+  document.getElementById('fileTagFilter').value = '';
+  document.getElementById('fileTagFilter').dataset.userPicked = '';
+  document.getElementById('monthFilter').value = '';
+  init();
+});
+document.getElementById('loadBtn').addEventListener('click', load);
+init();
