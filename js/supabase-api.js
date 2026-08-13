@@ -40,15 +40,20 @@ window.DB = (function () {
     return r;
   }
 
-  // 读取某域全部行；返回 { by, updatedAt, rows }
+  // 读取某域全部行；返回 { by, updatedAt, rows, files }
   // Supabase REST 默认单次最多返回 1000 行，这里用 limit/offset 循环拉取。
+  // options.fileTag 可指定只读某个上传批次；options.onProgress(count) 进度回调。
   async function readDomain(domain, options) {
     options = options || {};
     const pageSize = 1000;
     const allItems = [];
     let offset = 0;
+    const fileTagQ = options.fileTag
+      ? '&file_tag=eq.' + encodeURIComponent(options.fileTag)
+      : '';
     while (true) {
       const r = await req('GET', '?domain=eq.' + encodeURIComponent(domain) +
+        fileTagQ +
         '&select=domain,row_key,uploader,updated_at,row_data,file_tag&order=row_key' +
         '&limit=' + pageSize + '&offset=' + offset);
       const items = await r.json();
@@ -140,8 +145,25 @@ window.DB = (function () {
     return true;
   }
 
+  // 列出某域所有上传批次（按更新时间倒序，去重）
+  async function listFileTags(domain) {
+    const r = await req('GET', '?domain=eq.' + encodeURIComponent(domain) +
+      '&select=file_tag,updated_at&order=updated_at.desc&limit=1000');
+    const items = await r.json();
+    if (!Array.isArray(items)) return [];
+    const map = {};
+    items.forEach((it) => {
+      const ft = it.file_tag || '未命名批次';
+      if (!map[ft] || it.updated_at > map[ft].updatedAt) {
+        map[ft] = { fileTag: ft, updatedAt: it.updated_at, count: 0 };
+      }
+      map[ft].count++;
+    });
+    return Object.values(map).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
   return {
-    readDomain, writeDomain, deleteDomain, deleteFile,
+    readDomain, writeDomain, deleteDomain, deleteFile, listFileTags,
     getUploader, setUploader, getLastMergeKey, setLastMergeKey,
   };
 })();
