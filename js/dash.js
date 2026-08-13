@@ -307,7 +307,7 @@ function renderShopFilter(shops, selected) {
     const checked = selectedSet.has(s) ? 'checked' : '';
     return `<label class="multi-select-option" title="${escapeHtml(s)}"><input type="checkbox" value="${escapeHtml(s)}" ${checked}><span>${escapeHtml(s)}</span></label>`;
   }).join('');
-  toggle.textContent = formatShopToggleText(shops, selectedSet);
+  toggle.textContent = formatShopToggleText(shops, selected);
 }
 
 function initShopFilter() {
