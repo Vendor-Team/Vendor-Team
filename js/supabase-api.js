@@ -145,14 +145,24 @@ window.DB = (function () {
     return true;
   }
 
-  // 列出某域所有上传批次（按更新时间倒序，去重）
+  // 列出某域所有上传批次（按更新时间倒序，去重）。
+  // 这里必须全量读取 file_tag/updated_at，只读最近 1000 行会导致大域里只看到最新批次。
   async function listFileTags(domain) {
-    const r = await req('GET', '?domain=eq.' + encodeURIComponent(domain) +
-      '&select=file_tag,updated_at&order=updated_at.desc&limit=1000');
-    const items = await r.json();
-    if (!Array.isArray(items)) return [];
+    const pageSize = 1000;
+    const allItems = [];
+    let offset = 0;
+    while (true) {
+      const r = await req('GET', '?domain=eq.' + encodeURIComponent(domain) +
+        '&select=file_tag,updated_at&order=updated_at.desc' +
+        '&limit=' + pageSize + '&offset=' + offset);
+      const items = await r.json();
+      if (!Array.isArray(items) || !items.length) break;
+      allItems.push(...items);
+      if (items.length < pageSize) break;
+      offset += pageSize;
+    }
     const map = {};
-    items.forEach((it) => {
+    allItems.forEach((it) => {
       const ft = it.file_tag || '未命名批次';
       if (!map[ft] || it.updated_at > map[ft].updatedAt) {
         map[ft] = { fileTag: ft, updatedAt: it.updated_at, count: 0 };
